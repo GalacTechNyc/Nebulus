@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(mkdir:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:main:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run dev:renderer:*)",
+      "Bash(npm run electron:*)",
+      "Bash(npm run dev:*)",
+      "Bash(./node_modules/.bin/electron:*)",
+      "Bash(node:*)",
+      "Bash(npx electron:*)",
+      "Bash(ELECTRON_IS_DEV=1 npx electron . 2>&1)",
+      "Bash(npm run build:*)",
+      "Bash(grep:*)",
+      "Bash(DEBUG=*)",
+      "Bash(ELECTRON_ENABLE_LOGGING=1 npx electron .)",
+      "Bash(mv:*)",
+      "Bash(pkill:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(true)",
+      "Bash(curl:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}

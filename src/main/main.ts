@@ -4,6 +4,13 @@ import * as fs from 'fs';
 import { URL } from 'url';
 import OpenAI from 'openai';
 import * as dotenv from 'dotenv';
+// Try to import node-pty, gracefully fall back if not available
+let pty: any = null;
+try {
+  pty = require('node-pty');
+} catch (error) {
+  console.warn('node-pty not available, terminal will run in fallback mode:', (error as Error).message);
+}
 
 // Load environment variables
 dotenv.config();
@@ -13,10 +20,10 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'demo-key'
 });
 
-// Enable live reload for development
-const isDevelopment = process.env.NODE_ENV === 'development';
+// Force production mode for now to avoid webpack dev server issues
+const isDevelopment = false; // Temporarily disabled
 console.log('Main process NODE_ENV:', process.env.NODE_ENV);
-console.log('isDevelopment:', isDevelopment);
+console.log('Forced isDevelopment:', isDevelopment);
 
 if (isDevelopment) {
   try {
@@ -31,6 +38,7 @@ if (isDevelopment) {
 
 class GalactusIDE {
   private mainWindow: BrowserWindow | null = null;
+  private terminals: Map<string, any> = new Map();
 
   constructor() {
     this.initializeApp();
@@ -62,6 +70,9 @@ class GalactusIDE {
       height: 1000,
       minWidth: 800,
       minHeight: 600,
+      maxWidth: 3840, // Support 4K displays
+      maxHeight: 2160, // Support 4K displays
+      resizable: true, // Explicitly ensure window is resizable
       titleBarStyle: 'hiddenInset',
       webPreferences: {
         nodeIntegration: false,
@@ -120,9 +131,17 @@ class GalactusIDE {
 
     ipcMain.handle('file:write', async (_, filePath: string, content: string) => {
       try {
-        await fs.promises.writeFile(filePath, content, 'utf-8');
+        console.log('Main process: Writing file', { filePath, contentLength: content.length, cwd: process.cwd() });
+        
+        // Convert relative paths to absolute paths
+        const absolutePath = path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath);
+        console.log('Absolute path:', absolutePath);
+        
+        await fs.promises.writeFile(absolutePath, content, 'utf-8');
+        console.log('File written successfully:', absolutePath);
         return { success: true };
       } catch (error) {
+        console.error('File write error:', error);
         return { success: false, error: (error as Error).message };
       }
     });
@@ -195,12 +214,15 @@ class GalactusIDE {
       return result;
     });
 
-    // Terminal operations
+    // Terminal operations - Legacy one-off command execution (keep for backward compatibility)
     ipcMain.handle('terminal:execute', async (_, command: string, cwd?: string) => {
       return new Promise((resolve) => {
+        const workingDir = cwd || process.cwd();
+        console.log('Main process: Executing command', { command, cwd: workingDir });
+        
         const { spawn } = require('child_process');
         const childProcess = spawn('bash', ['-c', command], {
-          cwd: cwd || process.cwd(),
+          cwd: workingDir,
           shell: true
         });
 
@@ -216,6 +238,7 @@ class GalactusIDE {
         });
 
         childProcess.on('close', (code: number) => {
+          console.log('Command completed', { command, code, stdout, stderr });
           resolve({
             success: code === 0,
             stdout,
@@ -226,12 +249,200 @@ class GalactusIDE {
       });
     });
 
+    // Real Terminal operations - Connect to actual system shell
+    ipcMain.handle('terminal:create', async (event, options: { id: string; cwd?: string; cols?: number; rows?: number }) => {
+      try {
+        const { id, cwd = process.cwd(), cols = 80, rows = 30 } = options;
+        console.log('Creating real terminal session:', { id, cwd, cols, rows });
+
+        // Determine the user's shell
+        const userShell = process.env.SHELL || '/bin/bash';
+        console.log('Using shell:', userShell);
+        
+        // Try to use node-pty if available, otherwise use enhanced fallback
+        if (pty) {
+          try {
+            const ptyProcess = pty.spawn(userShell, [], {
+              name: 'xterm-256color',
+              cols,
+              rows,
+              cwd,
+              env: {
+                ...process.env,
+                TERM: 'xterm-256color',
+                COLORTERM: 'truecolor',
+                FORCE_COLOR: '1'
+              }
+            });
+
+            this.terminals.set(id, ptyProcess);
+
+            // Handle data from PTY (terminal output)
+            ptyProcess.onData((data: string) => {
+              event.sender.send('terminal:data', { id, data });
+            });
+
+            // Handle PTY exit
+            ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
+              console.log(`Terminal ${id} exited with code ${exitCode}`);
+              this.terminals.delete(id);
+              event.sender.send('terminal:exit', { id, exitCode });
+            });
+
+            console.log(`Real PTY terminal ${id} created successfully`);
+            return { success: true, id, mode: 'pty', shell: userShell };
+          } catch (ptyError) {
+            console.warn('PTY creation failed, using enhanced fallback:', ptyError);
+          }
+        }
+        
+        // Enhanced Fallback: Create a persistent shell session with proper TTY emulation
+        const { spawn } = require('child_process');
+        
+        // Use unbuffer (from expect package) or script command to create a PTY-like environment
+        let shellCommand = userShell;
+        let shellArgs = ['-i'];
+        
+        if (process.platform !== 'win32') {
+          // First try unbuffer (from expect package) which provides better PTY emulation
+          try {
+            // Test if unbuffer is available
+            require('child_process').execSync('which unbuffer', { stdio: 'ignore' });
+            shellCommand = 'unbuffer';
+            shellArgs = [userShell, '-i'];
+            console.log('Using unbuffer for PTY emulation');
+          } catch {
+            // Fallback to script command
+            shellCommand = 'script';
+            shellArgs = ['-q', '/dev/null', userShell, '-i'];
+            console.log('Using script command for PTY emulation');
+          }
+        }
+        
+        const shellProcess = spawn(shellCommand, shellArgs, {
+          cwd,
+          env: {
+            ...process.env,
+            TERM: 'xterm-256color',
+            COLORTERM: 'truecolor',
+            FORCE_COLOR: '1',
+            // Set environment variables that help with interactive tools
+            COLUMNS: cols.toString(),
+            LINES: rows.toString()
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
+          // Enable pseudo-terminal features
+          detached: false
+        });
+
+        this.terminals.set(id, shellProcess);
+
+        // Handle stdout
+        shellProcess.stdout.on('data', (data: Buffer) => {
+          event.sender.send('terminal:data', { id, data: data.toString() });
+        });
+
+        // Handle stderr
+        shellProcess.stderr.on('data', (data: Buffer) => {
+          event.sender.send('terminal:data', { id, data: data.toString() });
+        });
+
+        // Handle process exit
+        shellProcess.on('close', (code: number) => {
+          console.log(`Terminal ${id} shell exited with code ${code}`);
+          this.terminals.delete(id);
+          event.sender.send('terminal:exit', { id, exitCode: code });
+        });
+
+        console.log(`Enhanced shell terminal ${id} created successfully with ${shellCommand}`);
+        return { success: true, id, mode: 'enhanced-shell', shell: userShell };
+      } catch (error) {
+        console.error('Failed to create terminal:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    });
+
+    ipcMain.handle('terminal:write', async (_, id: string, data: string) => {
+      try {
+        const terminal = this.terminals.get(id);
+        if (!terminal) {
+          return { success: false, error: `Terminal ${id} not found` };
+        }
+
+        // Check if it's a PTY terminal
+        if (terminal.write) {
+          // PTY terminal
+          terminal.write(data);
+        } else if (terminal.stdin) {
+          // Regular spawn terminal
+          terminal.stdin.write(data);
+        } else {
+          return { success: false, error: 'Terminal not writable' };
+        }
+
+        return { success: true };
+      } catch (error) {
+        console.error('Failed to write to terminal:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    });
+
+    ipcMain.handle('terminal:resize', async (_, id: string, cols: number, rows: number) => {
+      try {
+        const terminal = this.terminals.get(id);
+        if (!terminal) {
+          return { success: false, error: `Terminal ${id} not found` };
+        }
+
+        // Check if it's a PTY terminal with resize capability
+        if (terminal.resize) {
+          terminal.resize(cols, rows);
+          console.log(`Terminal ${id} resized to ${cols}x${rows}`);
+        }
+        // For regular spawn terminals, resizing isn't directly supported
+
+        return { success: true };
+      } catch (error) {
+        console.error('Failed to resize terminal:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    });
+
+    ipcMain.handle('terminal:kill', async (_, id: string) => {
+      try {
+        if (!pty) {
+          return { success: false, error: 'PTY not available' };
+        }
+        
+        const terminal = this.terminals.get(id);
+        if (!terminal) {
+          return { success: false, error: `Terminal ${id} not found` };
+        }
+        
+        terminal.kill();
+        this.terminals.delete(id);
+        console.log(`Terminal ${id} killed`);
+        return { success: true };
+      } catch (error) {
+        console.error(`Failed to kill terminal ${id}:`, error);
+        return { success: false, error: (error as Error).message };
+      }
+    });
+
     // AI service communication - Streaming
     ipcMain.handle('ai:chat', async (event, messages: any[]) => {
       try {
+        // Add system message to clarify AI's role
+        const systemMessage = {
+          role: 'system',
+          content: 'You are GalactusAI, an AI assistant integrated into the GalactusIDE development environment. You have access to the user\'s editor content, browser content, and terminal output which are provided as context in user messages. Always provide helpful, specific responses based on the context provided. You can see and analyze code, terminal output, and web content that the user is working with.'
+        };
+        
+        const allMessages = [systemMessage, ...messages.map((m: any) => ({ role: m.role, content: m.content }))];
+        
         const stream = await openai.chat.completions.create({
           model: 'gpt-4',
-          messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
+          messages: allMessages,
           stream: true,
         });
 
@@ -278,9 +489,33 @@ class GalactusIDE {
       this.mainWindow?.close();
     });
 
-    // Forward editor insertion events back to renderer for direct code insertion
+    // Browser navigation
+    ipcMain.handle('browser:navigate', async (_, url: string) => {
+      try {
+        // Send navigation event to browser panel
+        this.mainWindow?.webContents.send('browser:navigate', url);
+        return { success: true };
+      } catch (error) {
+        console.error('Browser navigation error:', error);
+        return { success: false, error: (error as Error).message };
+      }
+    });
+
+    // Forward editor events back to renderer for direct code manipulation
     ipcMain.on('editor:insert-code', (event, code: string) => {
       event.sender.send('editor:insert-code', code);
+    });
+
+    ipcMain.on('editor:replace-selection', (event, code: string) => {
+      event.sender.send('editor:replace-selection', code);
+    });
+
+    ipcMain.on('editor:select-all', (event) => {
+      event.sender.send('editor:select-all');
+    });
+
+    ipcMain.on('editor:format-code', (event) => {
+      event.sender.send('editor:format-code');
     });
   }
 }

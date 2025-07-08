@@ -24,7 +24,21 @@
       "Bash(npm run type-check:*)",
       "Bash(true)",
       "Bash(curl:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(npm start)",
+      "Bash(git restore:*)",
+      "Bash(npm run:*)",
+      "Bash(rm:*)",
+      "Bash(killall:*)",
+      "Bash(wget:*)",
+      "Bash(nc:*)",
+      "Bash(touch:*)",
+      "Bash(NODE_ENV=production npm run electron)",
+      "Bash(cross-env:*)",
+      "Bash(NODE_ENV=production ./node_modules/.bin/electron .)",
+      "Bash(npm rebuild:*)",
+      "Bash(npx:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

@@ -12,6 +12,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   removeAllListeners: (channel: string) => ipcRenderer.removeAllListeners(channel),
   
+  // Terminal PTY APIs
+  createTerminal: (options: { id: string; cwd?: string; cols?: number; rows?: number }) => 
+    ipcRenderer.invoke('terminal:create', options),
+  writeToTerminal: (id: string, data: string) => 
+    ipcRenderer.invoke('terminal:write', id, data),
+  resizeTerminal: (id: string, cols: number, rows: number) => 
+    ipcRenderer.invoke('terminal:resize', id, cols, rows),
+  killTerminal: (id: string) => 
+    ipcRenderer.invoke('terminal:kill', id),
+  onTerminalData: (callback: (data: { id: string; data: string }) => void) => {
+    ipcRenderer.removeAllListeners('terminal:data');
+    ipcRenderer.on('terminal:data', (event, data) => callback(data));
+  },
+  onTerminalExit: (callback: (data: { id: string; exitCode: number }) => void) => {
+    ipcRenderer.removeAllListeners('terminal:exit');
+    ipcRenderer.on('terminal:exit', (event, data) => callback(data));
+  },
+  
   // Expose some Node.js APIs that are safe for the renderer
   platform: process.platform,
   arch: process.arch,

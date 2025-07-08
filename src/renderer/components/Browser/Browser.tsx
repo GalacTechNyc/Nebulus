@@ -18,12 +18,12 @@ const AddressBar = styled.div`
   gap: ${props => props.theme.spacing.sm};
 `;
 
-const DevToolsButton = styled.button<{ active?: boolean }>`
+const DevToolsButton = styled.button<{ $active?: boolean }>`
   width: 28px;
   height: 28px;
   border-radius: ${props => props.theme.borderRadius.small};
-  background-color: ${props => props.active ? props.theme.colors.primary : props.theme.colors.surfaceHover};
-  color: ${props => props.active ? 'white' : props.theme.colors.text};
+  background-color: ${props => props.$active ? props.theme.colors.primary : props.theme.colors.surfaceHover};
+  color: ${props => props.$active ? 'white' : props.theme.colors.text};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -31,20 +31,20 @@ const DevToolsButton = styled.button<{ active?: boolean }>`
   font-size: 12px;
   
   &:hover {
-    background-color: ${props => props.active ? props.theme.colors.primaryHover : props.theme.colors.borderHover};
+    background-color: ${props => props.$active ? props.theme.colors.primaryHover : props.theme.colors.borderHover};
   }
 `;
 
-const PreviewModeIndicator = styled.div<{ active: boolean }>`
+const PreviewModeIndicator = styled.div<{ $active: boolean }>`
   display: flex;
   align-items: center;
   gap: ${props => props.theme.spacing.xs};
   padding: ${props => props.theme.spacing.xs} ${props => props.theme.spacing.sm};
-  background-color: ${props => props.active ? props.theme.colors.success + '20' : props.theme.colors.surface};
-  border: 1px solid ${props => props.active ? props.theme.colors.success : props.theme.colors.border};
+  background-color: ${props => props.$active ? props.theme.colors.success + '20' : props.theme.colors.surface};
+  border: 1px solid ${props => props.$active ? props.theme.colors.success : props.theme.colors.border};
   border-radius: ${props => props.theme.borderRadius.small};
   font-size: ${props => props.theme.fontSizes.small};
-  color: ${props => props.active ? props.theme.colors.success : props.theme.colors.text};
+  color: ${props => props.$active ? props.theme.colors.success : props.theme.colors.text};
 `;
 
 const NavigationButtons = styled.div`
@@ -105,14 +105,14 @@ const Webview = styled.div`
   }
 `;
 
-const LoadingOverlay = styled.div<{ visible: boolean }>`
+const LoadingOverlay = styled.div<{ $visible: boolean }>`
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   background-color: ${props => props.theme.colors.background};
-  display: ${props => props.visible ? 'flex' : 'none'};
+  display: ${props => props.$visible ? 'flex' : 'none'};
   align-items: center;
   justify-content: center;
   flex-direction: column;
@@ -155,13 +155,18 @@ const QuickAction = styled.button`
   background-color: ${props => props.theme.colors.surface};
   border: 1px solid ${props => props.theme.colors.border};
   border-radius: ${props => props.theme.borderRadius.medium};
-  color: ${props => props.theme.colors.text};
+  color: #FFFFFF;
   font-size: ${props => props.theme.fontSizes.small};
+  font-weight: 600;
   cursor: pointer;
+  transition: all ${props => props.theme.transitions.fast};
   
   &:hover {
-    background-color: ${props => props.theme.colors.surfaceHover};
-    border-color: ${props => props.theme.colors.borderHover};
+    background-color: ${props => props.theme.colors.primary};
+    border-color: ${props => props.theme.colors.primary};
+    color: #000000;
+    box-shadow: ${props => props.theme.shadows.neonCyan};
+    transform: translateY(-2px);
   }
 `;
 
@@ -311,6 +316,38 @@ const Browser: React.FC = () => {
     };
   }, [isLivePreview]);
 
+  // Listen for browser navigation events from main process
+  useEffect(() => {
+    const handleNavigation = (url: string) => {
+      console.log('Browser navigation received:', url.substring(0, 100) + '...');
+      console.log('Setting current URL and url state');
+      setCurrentUrl(url);
+      setUrl(url);
+      
+      // Force webview to navigate if it exists
+      if (webviewRef.current) {
+        console.log('Forcing webview navigation');
+        webviewRef.current.src = url;
+      }
+    };
+
+    // Set up IPC listener for browser navigation
+    if (window.electronAPI) {
+      window.electronAPI.on('browser:navigate', handleNavigation);
+    }
+
+    return () => {
+      if (window.electronAPI) {
+        window.electronAPI.removeAllListeners('browser:navigate');
+      }
+    };
+  }, []);
+
+  // Expose browser context globally for AI integration
+  useEffect(() => {
+    (window as any).__galactusBrowserUrl = currentUrl;
+  }, [currentUrl]);
+
   // Attach webview event listeners to update loading and navigation state
   useEffect(() => {
     const webview = webviewRef.current;
@@ -321,7 +358,24 @@ const Browser: React.FC = () => {
       setIsLoading(false);
       setCanGoBack(webview.canGoBack());
       setCanGoForward(webview.canGoForward());
-      setCurrentUrl(webview.getURL());
+      const newUrl = webview.getURL();
+      setCurrentUrl(newUrl);
+      
+      // Update global context for AI
+      (window as any).__galactusBrowserUrl = newUrl;
+      
+      // Try to get page title and content for AI context
+      try {
+        webview.executeJavaScript('document.title').then((title: string) => {
+          (window as any).__galactusBrowserTitle = title;
+        }).catch(() => {});
+        
+        webview.executeJavaScript('document.body.innerText.substring(0, 1000)').then((content: string) => {
+          (window as any).__galactusBrowserContent = content;
+        }).catch(() => {});
+      } catch (error) {
+        // Ignore errors from cross-origin frames
+      }
     };
     
     // Security: Block unauthorized navigation attempts
@@ -372,7 +426,7 @@ const Browser: React.FC = () => {
           <NavButton onClick={handleRefresh}>
             ↻
           </NavButton>
-          <DevToolsButton active={devToolsOpen} onClick={toggleDevTools} title="Toggle Developer Tools">
+          <DevToolsButton $active={devToolsOpen} onClick={toggleDevTools} title="Toggle Developer Tools">
             🔧
           </DevToolsButton>
           {!isLivePreview && (
@@ -387,11 +441,11 @@ const Browser: React.FC = () => {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={handleUrlKeyDown}
-          placeholder="Enter URL or search term..."
+          placeholder="Enter URL or paste HTML data URL for preview..."
         />
         
         {isLivePreview && (
-          <PreviewModeIndicator active={true}>
+          <PreviewModeIndicator $active={true}>
             <span>🔴</span>
             <span>Live Preview</span>
           </PreviewModeIndicator>
@@ -402,8 +456,8 @@ const Browser: React.FC = () => {
         {!currentUrl ? (
           <EmptyState>
             <div style={{ fontSize: '48px' }}>🌐</div>
-            <div style={{ fontSize: '18px' }}>Web Browser</div>
-            <div>Navigate to any website to start browsing</div>
+            <div style={{ fontSize: '18px', color: '#000000', fontWeight: 'bold', background: 'linear-gradient(45deg, #00FFFF, #FF006E)', padding: '8px 16px', borderRadius: '8px', textShadow: 'none' }}>Web Browser</div>
+            <div style={{ color: '#000000', fontWeight: '600', background: 'rgba(255, 255, 255, 0.9)', padding: '4px 8px', borderRadius: '4px', marginTop: '8px' }}>Navigate to any website to start browsing</div>
             
             <QuickActions>
               <QuickAction onClick={() => quickNavigate('google.com')}>
@@ -422,7 +476,7 @@ const Browser: React.FC = () => {
           </EmptyState>
         ) : (
           <>
-            <LoadingOverlay visible={isLoading}>
+            <LoadingOverlay $visible={isLoading}>
               <LoadingSpinner />
               <div>Loading {currentUrl}...</div>
             </LoadingOverlay>
@@ -431,6 +485,7 @@ const Browser: React.FC = () => {
                 ref={webviewRef}
                 src={currentUrl}
                 style={{ width: '100%', height: '100%' }}
+                onLoad={() => console.log('Webview loaded:', currentUrl.substring(0, 50) + '...')}
                 {...({
                   sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads",
                   allowpopups: true,

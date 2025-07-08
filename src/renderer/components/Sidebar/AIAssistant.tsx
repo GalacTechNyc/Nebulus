@@ -111,6 +111,54 @@ const ReplaceButton = styled.button`
   }
 `;
 
+const CodeActionButton = styled.button<{ variant?: 'primary' | 'success' | 'warning' }>`
+  background: none;
+  border: 1px solid ${props => {
+    switch (props.variant) {
+      case 'success': return props.theme.colors.success;
+      case 'warning': return props.theme.colors.warning;
+      default: return props.theme.colors.primary;
+    }
+  }};
+  color: ${props => {
+    switch (props.variant) {
+      case 'success': return props.theme.colors.success;
+      case 'warning': return props.theme.colors.warning;
+      default: return props.theme.colors.primary;
+    }
+  }};
+  cursor: pointer;
+  padding: ${props => props.theme.spacing.xs} ${props => props.theme.spacing.sm};
+  border-radius: ${props => props.theme.borderRadius.small};
+  font-size: ${props => props.theme.fontSizes.small};
+  margin: 2px;
+  
+  &:hover {
+    background-color: ${props => {
+      switch (props.variant) {
+        case 'success': return props.theme.colors.success + '20';
+        case 'warning': return props.theme.colors.warning + '20';
+        default: return props.theme.colors.primary + '20';
+      }
+    }};
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const CodeActionsContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: ${props => props.theme.spacing.xs};
+  padding: ${props => props.theme.spacing.xs};
+  background-color: ${props => props.theme.colors.surface};
+  border-radius: ${props => props.theme.borderRadius.small};
+`;
+
 const InputContainer = styled.div`
   display: flex;
   flex-direction: column;
@@ -283,7 +331,25 @@ const AIAssistant: React.FC = () => {
     setInput('');
 
     try {
-      const chatHistory = state.ai.messages.concat(userMessage).map(m => ({ role: m.role, content: m.content }));
+      // Gather context from editor, browser, and terminal
+      const editorContext = await ipcService.getEditorContext();
+      const browserContext = await getBrowserContext();
+      const terminalContext = getTerminalContext();
+      
+      // Create enhanced message with context
+      const contextualContent = await createContextualMessage(input.trim(), {
+        editor: editorContext,
+        browser: browserContext,
+        terminal: terminalContext
+      });
+
+      // Update the user message with context if needed
+      const enhancedUserMessage = {
+        ...userMessage,
+        content: contextualContent
+      };
+
+      const chatHistory = state.ai.messages.concat(enhancedUserMessage).map(m => ({ role: m.role, content: m.content }));
       setStreamingMessage(''); // Clear any previous streaming message
       
       // Start streaming - the response will be handled by the useEffect listener
@@ -380,6 +446,119 @@ What specific task would you like help with?`;
     setInput(action);
   };
 
+  // Get browser context (current URL and page content)
+  const getBrowserContext = async () => {
+    try {
+      // Access browser context from global state or DOM
+      const browserUrl = (window as any).__galactusBrowserUrl || 'about:blank';
+      const browserTitle = (window as any).__galactusBrowserTitle || '';
+      const browserContent = (window as any).__galactusBrowserContent || '';
+      
+      return {
+        url: browserUrl,
+        title: browserTitle,
+        content: browserContent ? browserContent.substring(0, 1000) : '', // Limit content size
+        hasContent: !!browserContent
+      };
+    } catch (error) {
+      return {
+        url: 'about:blank',
+        title: '',
+        content: '',
+        hasContent: false
+      };
+    }
+  };
+
+  // Get terminal context (recent command history and output)
+  const getTerminalContext = () => {
+    try {
+      // Get terminal content from global terminal instance which is properly set
+      const globalTerminalContent = (window as any).__galactusTerminalContent || '';
+      const terminalLines = (window as any).__galactusTerminalLines || [];
+      
+      console.log('Getting terminal context:', { 
+        globalTerminalContent: globalTerminalContent.substring(0, 100) + '...', 
+        terminalLinesCount: terminalLines.length 
+      });
+      
+      return {
+        currentDirectory: '/Users/stephonbridges/Nebulus',
+        recentHistory: globalTerminalContent,
+        terminalLines: terminalLines.slice(-10), // Last 10 lines
+        hasHistory: globalTerminalContent.length > 0,
+        fullTerminalContent: globalTerminalContent
+      };
+    } catch (error) {
+      console.error('Error getting terminal context:', error);
+      return {
+        currentDirectory: '/Users/stephonbridges/Nebulus',
+        recentHistory: 'Terminal content not available',
+        terminalLines: [],
+        hasHistory: false,
+        fullTerminalContent: ''
+      };
+    }
+  };
+
+  // Create a contextual message that includes relevant context
+  const createContextualMessage = async (userInput: string, context: {
+    editor: any;
+    browser: any;
+    terminal: any;
+  }) => {
+    const { editor, browser, terminal } = context;
+    
+    // Check if the user is asking for help with current context - be more inclusive
+    const isContextualQuery = /\b(this|current|here|what|why|how|debug|fix|explain|optimize|see|code|editor|html|css|js|javascript)\b/i.test(userInput);
+    
+    // Always include context if there is meaningful editor content
+    const hasEditorContent = editor.fileName && (editor.content?.length > 0 || editor.selectedText?.length > 0);
+    
+    if (!isContextualQuery && !hasEditorContent) {
+      return userInput; // Return original message if not contextual and no editor content
+    }
+
+    let contextInfo = [];
+    
+    // Add editor context if relevant - be more inclusive
+    if (editor.fileName || editor.content || editor.selectedText || editor.errors?.length > 0) {
+      contextInfo.push('**Current Editor Context:**');
+      if (editor.fileName) contextInfo.push(`File: ${editor.fileName}`);
+      if (editor.selectedText) {
+        contextInfo.push(`Selected code:\n\`\`\`\n${editor.selectedText}\n\`\`\``);
+      } else if (editor.content && editor.content.length > 0) {
+        contextInfo.push(`File content:\n\`\`\`\n${editor.content.substring(0, 1000)}${editor.content.length > 1000 ? '...' : ''}\n\`\`\``);
+      }
+      if (editor.errors?.length > 0) {
+        contextInfo.push(`Errors: ${editor.errors.map((e: any) => `${e.message} (line ${e.startLineNumber})`).join(', ')}`);
+      }
+    }
+    
+    // Add browser context if relevant
+    if (browser.hasContent && browser.url !== 'about:blank') {
+      contextInfo.push('\n**Current Browser Context:**');
+      contextInfo.push(`URL: ${browser.url}`);
+      if (browser.title) contextInfo.push(`Title: ${browser.title}`);
+      if (browser.content) {
+        contextInfo.push(`Page content: ${browser.content.substring(0, 300)}${browser.content.length > 300 ? '...' : ''}`);
+      }
+    }
+    
+    // Add terminal context if relevant
+    if (terminal.hasHistory) {
+      contextInfo.push('\n**Current Terminal Context:**');
+      contextInfo.push(`Directory: ${terminal.currentDirectory}`);
+      contextInfo.push(`Recent commands:\n\`\`\`\n${terminal.recentHistory}\n\`\`\``);
+    }
+    
+    if (contextInfo.length > 0) {
+      return `${userInput}\n\n${contextInfo.join('\n')}`;
+    }
+    
+    return userInput;
+  };
+
   // Enhanced code insertion with context awareness
   const handleInsertCode = async (code: string) => {
     try {
@@ -426,6 +605,97 @@ What specific task would you like help with?`;
     }
   };
 
+  // Enhanced code editing functions
+  const handlePatchCode = async (code: string) => {
+    try {
+      const context = await ipcService.getEditorContext();
+      if (context.selectedText) {
+        // Apply as a patch to selected code
+        const confirmation = window.confirm(
+          `Apply this code change to the selected text?\n\nSelected text: ${context.selectedText.substring(0, 100)}${context.selectedText.length > 100 ? '...' : ''}\n\nNew code: ${code.substring(0, 100)}${code.length > 100 ? '...' : ''}`
+        );
+        if (confirmation) {
+          await ipcService.replaceSelectedText(code);
+          setTimeout(() => ipcService.formatEditorCode(), 100);
+        }
+      } else {
+        // No selection - ask user where to apply the patch
+        const fileName = context.fileName || 'current file';
+        const confirmation = window.confirm(`Apply this code patch to ${fileName}? This will insert the code at the cursor position.`);
+        if (confirmation) {
+          ipcService.sendEditorInsertCode(code);
+          setTimeout(() => ipcService.formatEditorCode(), 100);
+        }
+      }
+    } catch (error) {
+      console.error('Error patching code:', error);
+      ipcService.sendEditorInsertCode(code);
+    }
+  };
+
+  const handleEditFile = async (code: string) => {
+    try {
+      const context = await ipcService.getEditorContext();
+      const fileName = context.fileName || 'current file';
+      
+      const confirmation = window.confirm(
+        `Replace entire content of ${fileName} with this code?\n\nThis action cannot be undone. Make sure you have saved any important changes first.`
+      );
+      
+      if (confirmation) {
+        // Get current file content and replace entirely
+        if (context.content !== undefined) {
+          // Select all and replace
+          await ipcService.selectAllEditorText();
+          await ipcService.replaceSelectedText(code);
+          setTimeout(() => ipcService.formatEditorCode(), 100);
+        } else {
+          // Fallback to insert
+          ipcService.sendEditorInsertCode(code);
+        }
+      }
+    } catch (error) {
+      console.error('Error editing file:', error);
+      ipcService.sendEditorInsertCode(code);
+    }
+  };
+
+  const handleInsertAtCursor = async (code: string) => {
+    try {
+      // Simple insertion at cursor position
+      ipcService.sendEditorInsertCode(code);
+      setTimeout(() => ipcService.formatEditorCode(), 100);
+    } catch (error) {
+      console.error('Error inserting code:', error);
+    }
+  };
+
+  const handleSmartReplace = async (code: string) => {
+    try {
+      const context = await ipcService.getEditorContext();
+      
+      if (context.selectedText) {
+        // Smart replace selected text
+        await ipcService.replaceSelectedText(code);
+        setTimeout(() => ipcService.formatEditorCode(), 100);
+      } else {
+        // Ask user what to replace
+        const searchText = window.prompt('Enter text to search and replace:');
+        if (searchText) {
+          // This would require enhanced editor API to search and replace
+          // For now, fall back to insertion
+          const confirmation = window.confirm(`Could not find "${searchText}". Insert code at cursor instead?`);
+          if (confirmation) {
+            ipcService.sendEditorInsertCode(code);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error replacing code:', error);
+      ipcService.sendEditorInsertCode(code);
+    }
+  };
+
   // Context-aware prompt generation
   const handleContextualPrompt = async (actionType: string) => {
     try {
@@ -439,7 +709,12 @@ What specific task would you like help with?`;
             : "Create a React component with TypeScript and styled-components";
           break;
         case "debug":
-          if (context.selectedText) {
+          // If there are compile/runtime errors, ask AI to fix those first
+          if (context.errors && context.errors.length > 0) {
+            prompt = `Please fix the following error(s) in ${context.fileName || 'your code'}:\n\n` +
+              context.errors.map(e => `- ${e.message} at line ${e.startLineNumber}, column ${e.startColumn}`).join('\n') +
+              `\n\nHere is the code:\n\n${context.selectedText || context.content || ''}`;
+          } else if (context.selectedText) {
             prompt = `Debug this code and explain any issues:\n\n${context.selectedText}`;
           } else {
             prompt = context.fileName 
@@ -529,6 +804,20 @@ What specific task would you like help with?`;
                 ✨ Format & Insert
               </InsertButton>
             </CodeActions>
+            <CodeActionsContainer>
+              <CodeActionButton onClick={() => handlePatchCode(part)}>
+                🩹 Patch
+              </CodeActionButton>
+              <CodeActionButton onClick={() => handleEditFile(part)} variant="warning">
+                📄 Edit File
+              </CodeActionButton>
+              <CodeActionButton onClick={() => handleInsertAtCursor(part)} variant="success">
+                📍 At Cursor
+              </CodeActionButton>
+              <CodeActionButton onClick={() => handleSmartReplace(part)}>
+                🔍 Smart Replace
+              </CodeActionButton>
+            </CodeActionsContainer>
           </div>
         );
       } else if (index % 3 === 1) {

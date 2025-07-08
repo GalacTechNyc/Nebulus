@@ -46,6 +46,30 @@ module.exports = {
       }
     ]
   },
+  devServer: {
+    port: 3000,
+    hot: true,
+    historyApiFallback: true,
+    static: {
+      directory: path.join(__dirname, 'dist/renderer'),
+      publicPath: '/'
+    },
+    headers: {
+      'Access-Control-Allow-Origin': '*'
+    },
+    compress: true,
+    open: false
+  },
+  devtool: process.env.NODE_ENV === 'development' ? 'source-map' : false,
+  
+  // Electron-specific settings
+  node: {
+    __dirname: false,
+    __filename: false,
+    global: false
+  },
+  
+  // Define global variables for compatibility
   plugins: [
     new HtmlWebpackPlugin({
       template: './src/renderer/index.html',
@@ -103,27 +127,9 @@ module.exports = {
         'wordHighlighter',
         'wordOperations'
       ]
+    }),
+    new (require('webpack')).DefinePlugin({
+      'global': 'globalThis'
     })
-  ],
-  devServer: {
-    port: 3000,
-    hot: true,
-    historyApiFallback: true,
-    static: {
-      directory: path.join(__dirname, 'dist/renderer'),
-      publicPath: '/'
-    },
-    headers: {
-      'Access-Control-Allow-Origin': '*'
-    },
-    compress: true,
-    open: false
-  },
-  devtool: process.env.NODE_ENV === 'development' ? 'source-map' : false,
-  
-  // Electron-specific settings
-  node: {
-    __dirname: false,
-    __filename: false
-  }
+  ]
 };

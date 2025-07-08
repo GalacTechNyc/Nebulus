@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Monaco Editor Debug Test</title>
+    <script src="https://unpkg.com/monaco-editor@0.33.0/min/vs/loader.js"></script>
+</head>
+<body>
+    <h1>Monaco Editor Test</h1>
+    <div id="editor" style="width: 800px; height: 400px; border: 1px solid #ccc;"></div>
+    <div id="output"></div>
+    
+    <script>
+        require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.33.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            var editor = monaco.editor.create(document.getElementById('editor'), {
+                value: 'console.log("Hello World!");\n// Try editing this text',
+                language: 'javascript',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                readOnly: false
+            });
+            
+            editor.onDidChangeModelContent(function() {
+                document.getElementById('output').innerHTML = 
+                    '<p>Content changed! Length: ' + editor.getValue().length + '</p>';
+            });
+            
+            console.log('Monaco Editor created successfully');
+        });
+    </script>
+</body>
+</html>

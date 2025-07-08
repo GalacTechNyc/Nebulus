@@ -5,7 +5,7 @@ import { useAppState, useLayout } from '../../hooks/useAppState';
 import Editor from '../Editor/Editor';
 import Browser from '../Browser/Browser';
 import Sidebar from '../Sidebar/Sidebar';
-import Terminal from '../Terminal/Terminal';
+import TerminalPanel from '../Terminal/TerminalPanel';
 import TitleBar from './TitleBar';
 
 const LayoutContainer = styled.div`
@@ -22,8 +22,8 @@ const MainContent = styled.div`
   overflow: hidden;
 `;
 
-const PanelContainer = styled.div<{ visible: boolean }>`
-  display: ${props => props.visible ? 'flex' : 'none'};
+const PanelContainer = styled.div<{ $visible: boolean }>`
+  display: ${props => props.$visible ? 'flex' : 'none'};
   flex-direction: column;
   height: 100%;
   background-color: ${props => props.theme.colors.surface};
@@ -64,7 +64,7 @@ const Layout: React.FC = () => {
   const showEditor = editorPanel?.visible ?? true;
   const showBrowser = browserPanel?.visible ?? true;
   const showAI = aiPanel?.visible ?? true;
-  const showTerminal = terminalPanel?.visible ?? false;
+  const showTerminal = state.terminal.showTerminalPanel;
 
   return (
     <LayoutContainer>
@@ -76,7 +76,7 @@ const Layout: React.FC = () => {
           {showExplorer && (
             <>
               <Panel defaultSize={20} minSize={15} maxSize={35}>
-                <PanelContainer visible={showExplorer}>
+                <PanelContainer $visible={showExplorer}>
                   <Sidebar type="explorer" />
                 </PanelContainer>
               </Panel>
@@ -91,7 +91,7 @@ const Layout: React.FC = () => {
               <Panel defaultSize={showTerminal ? 75 : 100} minSize={40}>
                 <PanelGroup direction="vertical">
                   <Panel defaultSize={100} minSize={30}>
-                    <PanelContainer visible={showEditor}>
+                    <PanelContainer $visible={showEditor}>
                       <Editor />
                     </PanelContainer>
                   </Panel>
@@ -100,9 +100,9 @@ const Layout: React.FC = () => {
                   {showTerminal && (
                     <>
                       <ResizeHandle />
-                      <Panel defaultSize={25} minSize={20} maxSize={50}>
-                        <PanelContainer visible={showTerminal}>
-                          <Terminal />
+                      <Panel defaultSize={25} minSize={15} maxSize={60}>
+                        <PanelContainer $visible={showTerminal}>
+                          <TerminalPanel />
                         </PanelContainer>
                       </Panel>
                     </>
@@ -118,7 +118,7 @@ const Layout: React.FC = () => {
             <PanelGroup direction="vertical">
               {/* Browser */}
               <Panel defaultSize={60} minSize={30}>
-                <PanelContainer visible={showBrowser}>
+                <PanelContainer $visible={showBrowser}>
                   <Browser />
                 </PanelContainer>
               </Panel>
@@ -126,7 +126,7 @@ const Layout: React.FC = () => {
               {/* AI Assistant */}
               <ResizeHandle />
               <Panel defaultSize={40} minSize={25}>
-                <PanelContainer visible={showAI}>
+                <PanelContainer $visible={showAI}>
                   <Sidebar type="ai" />
                 </PanelContainer>
               </Panel>

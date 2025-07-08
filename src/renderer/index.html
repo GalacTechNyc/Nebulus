@@ -4,6 +4,50 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GalactusIDE</title>
+    <style>
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0D1117;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .loading-logo {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #58A6FF;
+            margin-bottom: 1rem;
+        }
+        .loading-text {
+            font-size: 2rem;
+            color: #F0F6FC;
+            margin-bottom: 0.5rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        .loading-subtext {
+            color: #8B949E;
+            margin-bottom: 2rem;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        .loading-spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid #30363D;
+            border-top: 3px solid #58A6FF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </head>
 <body>
     <div id="root">
@@ -16,6 +60,11 @@
     </div>
     
     <script>
+        // Global polyfill for Monaco Editor
+        if (typeof global === 'undefined') {
+            window.global = globalThis || window;
+        }
+        
         // Hide loading screen once React app loads
         window.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {

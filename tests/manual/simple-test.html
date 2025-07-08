@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            color: white;
+            text-align: center;
+            padding: 50px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        button {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background: #ff5252;
+            transform: scale(1.05);
+        }
+        #output {
+            margin-top: 20px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 GalactusIDE HTML Preview Working!</h1>
+        <p>If you can see this page with styling and interactivity, the HTML preview is working correctly!</p>
+        
+        <button onclick="testFunction()">Click me to test JavaScript!</button>
+        <button onclick="changeBackground()">Change Background</button>
+        
+        <div id="output">
+            <p>⭐ Ready for testing!</p>
+        </div>
+    </div>
+
+    <script>
+        let clickCount = 0;
+        
+        function testFunction() {
+            clickCount++;
+            document.getElementById('output').innerHTML = `
+                <h3>✅ JavaScript is working!</h3>
+                <p>Button clicked ${clickCount} times</p>
+                <p>Time: ${new Date().toLocaleTimeString()}</p>
+            `;
+        }
+        
+        function changeBackground() {
+            const colors = [
+                'linear-gradient(45deg, #ff6b6b, #4ecdc4)',
+                'linear-gradient(45deg, #667eea, #764ba2)',
+                'linear-gradient(45deg, #f093fb, #f5576c)',
+                'linear-gradient(45deg, #4facfe, #00f2fe)',
+                'linear-gradient(45deg, #43e97b, #38f9d7)'
+            ];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            document.body.style.background = randomColor;
+            
+            document.getElementById('output').innerHTML = `
+                <h3>🎨 Background changed!</h3>
+                <p>CSS and JavaScript working together perfectly!</p>
+            `;
+        }
+        
+        // Auto-test on load
+        console.log('Simple test page loaded successfully!');
+        
+        // Show loading confirmation
+        setTimeout(() => {
+            document.getElementById('output').innerHTML = `
+                <h3>🚀 Page loaded successfully!</h3>
+                <p>HTML, CSS, and JavaScript are all working!</p>
+                <p>Try clicking the buttons above.</p>
+            `;
+        }, 1000);
+    </script>
+</body>
+</html>

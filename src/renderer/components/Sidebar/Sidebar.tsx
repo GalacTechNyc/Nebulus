@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import FileExplorer from './FileExplorer';
+import FileExplorerEnhanced from './FileExplorerEnhanced';
 import AIAssistant from './AIAssistant';
 
 const SidebarContainer = styled.div`
@@ -46,7 +46,7 @@ const Sidebar: React.FC<SidebarProps> = ({ type }) => {
   const renderContent = () => {
     switch (type) {
       case 'explorer':
-        return <FileExplorer />;
+        return <FileExplorerEnhanced />;
       case 'ai':
         return <AIAssistant />;
       case 'deploy':

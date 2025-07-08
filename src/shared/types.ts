@@ -90,9 +90,16 @@ export interface AppState {
     selectedModel: string;
   };
   terminal: {
-    history: string[];
-    currentDirectory: string;
-    isRunning: boolean;
+    terminals: Array<{
+      id: string;
+      name: string;
+      cwd: string;
+      isActive: boolean;
+      splitGroup: number;
+    }>;
+    activeTerminal: string | null;
+    showTerminalPanel: boolean;
+    splitGroups: number; // Number of split groups (1 = no split, 2 = split)
   };
   deployment: {
     history: DeployResult[];

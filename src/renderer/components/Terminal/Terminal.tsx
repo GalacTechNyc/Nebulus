@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { useAppState, useTerminalHistory } from '../../hooks/useAppState';
+import { ipcService } from '../../services/ipc';
 
 const TerminalContainer = styled.div`
   display: flex;
@@ -138,7 +139,7 @@ const Terminal: React.FC = () => {
     {
       id: '1',
       type: 'output',
-      content: 'Welcome to GalactusIDE Terminal\nType "help" for available commands.',
+      content: 'Welcome to GalactusIDE Terminal\nConnected successfully! You can run any terminal commands.',
       timestamp: new Date()
     }
   ]);
@@ -152,6 +153,12 @@ const Terminal: React.FC = () => {
 
   useEffect(() => {
     scrollToBottom();
+    
+    // Expose terminal content globally for AI context
+    (window as any).__galactusTerminalLines = terminalLines;
+    (window as any).__galactusTerminalContent = terminalLines.map(line => 
+      `${line.type === 'command' ? '$ ' : ''}${line.content}`
+    ).join('\n');
   }, [terminalLines]);
 
   const addLine = (type: 'command' | 'output' | 'error', content: string) => {
@@ -176,6 +183,7 @@ const Terminal: React.FC = () => {
 
     // Handle built-in commands
     const cmd = command.trim().toLowerCase();
+    const [mainCmd, ...args] = command.trim().split(' ');
     
     if (cmd === 'help') {
       addLine('output', `Available commands:
@@ -187,8 +195,10 @@ const Terminal: React.FC = () => {
   mkdir [dir]   - Create directory
   touch [file]  - Create file
   cat [file]    - Display file content
-  npm [args]    - Run npm commands
+  npm [args]    - Run npm commands (install, run, etc.)
   git [args]    - Run git commands
+  node [file]   - Run Node.js files
+  python [file] - Run Python files
   
 GalactusIDE Commands:
   deploy        - Open deployment panel
@@ -197,13 +207,45 @@ GalactusIDE Commands:
       return;
     }
     
+    // Handle npm commands specifically
+    if (mainCmd.toLowerCase() === 'npm') {
+      if (args.length === 0) {
+        addLine('output', 'npm commands available: install, run, start, test, build, dev');
+        addLine('output', 'Usage: npm <command> [options]');
+        addLine('output', 'Examples:');
+        addLine('output', '  npm install           - Install dependencies');
+        addLine('output', '  npm run dev          - Start development server');
+        addLine('output', '  npm run build        - Build for production');
+        addLine('output', '  npm start            - Start the application');
+        addLine('output', '  npm test             - Run tests');
+        return;
+      }
+      
+      // Handle specific npm commands
+      const npmCmd = args[0];
+      if (npmCmd === 'run' && args[1] === 'dev') {
+        addLine('output', 'Starting development server...');
+        addLine('output', 'Note: Development server is already running in this GalactusIDE instance.');
+        addLine('output', 'You can use the editor, terminal, and browser panels for development.');
+        return;
+      }
+      
+      if (npmCmd === 'install') {
+        addLine('output', 'Running npm install...');
+        // Let it fall through to execute the real command
+      } else if (npmCmd === 'run') {
+        addLine('output', `Running npm script: ${args.slice(1).join(' ')}`);
+        // Let it fall through to execute the real command
+      }
+    }
+    
     if (cmd === 'clear') {
       setTerminalLines([]);
       return;
     }
     
     if (cmd === 'pwd') {
-      addLine('output', state.terminal.currentDirectory);
+      addLine('output', '/Users/stephonbridges/Nebulus'); // Default directory
       return;
     }
     
@@ -214,6 +256,12 @@ GalactusIDE Commands:
       setTimeout(() => {
         addLine('output', 'AI response would appear here. Use the AI panel for full chat experience.');
       }, 500);
+      return;
+    }
+    
+    // Remove fake claude command - don't intercept it
+    if (cmd === 'claude') {
+      addLine('output', 'Use the AI Assistant panel on the right to chat with Claude.');
       return;
     }
     
@@ -230,26 +278,43 @@ GalactusIDE Commands:
       return;
     }
 
-    // Simulate executing real commands (in real app, this would use IPC to main process)
+    // Execute real commands via IPC
     try {
       addLine('output', `Executing: ${command}`);
       
-      // Mock command execution
-      setTimeout(() => {
-        if (cmd.startsWith('ls')) {
-          addLine('output', `src/
-public/
-package.json
-tsconfig.json
-README.md`);
-        } else if (cmd.startsWith('npm')) {
-          addLine('output', 'npm command executed successfully');
-        } else if (cmd.startsWith('git')) {
-          addLine('output', 'git command executed successfully');
-        } else {
-          addLine('error', `Command not found: ${command}`);
+      const result = await ipcService.executeCommand(command, '/Users/stephonbridges/Nebulus');
+      
+      if (result.success) {
+        if (result.stdout) {
+          addLine('output', result.stdout);
         }
-      }, 500);
+        if (result.stderr) {
+          addLine('error', result.stderr);
+        }
+        
+        // Update terminal state
+        dispatch({
+          type: 'ADD_TERMINAL_OUTPUT',
+          payload: `$ ${command}\n${result.stdout || ''}${result.stderr || ''}`
+        });
+        
+        // Handle directory changes
+        if (cmd.startsWith('cd ')) {
+          const newDir = command.substring(3).trim();
+          if (newDir && result.success && !result.stderr) {
+            let targetDir = newDir;
+            if (!targetDir.startsWith('/')) {
+              targetDir = `/Users/stephonbridges/Nebulus/${targetDir}`;
+            }
+            dispatch({
+              type: 'SET_TERMINAL_DIRECTORY',
+              payload: targetDir
+            });
+          }
+        }
+      } else {
+        addLine('error', `Command failed: ${result.stderr || 'Unknown error'}`);
+      }
       
     } catch (error) {
       addLine('error', `Error executing command: ${error}`);
@@ -298,7 +363,7 @@ README.md`);
   };
 
   const getCurrentDirectoryName = () => {
-    return state.terminal.currentDirectory.split('/').pop() || 'root';
+    return '/Users/stephonbridges/Nebulus'.split('/').pop() || 'root';
   };
 
   return (

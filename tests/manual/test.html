@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test HTML Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+        }
+        .highlight {
+            background-color: yellow;
+            padding: 2px 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test HTML Page</h1>
+        <p>This is a <span class="highlight">test HTML file</span> for GalactusIDE!</p>
+        <p>If you can see this page in the browser panel, the HTML run functionality is working correctly.</p>
+        
+        <h2>Features Test:</h2>
+        <ul>
+            <li>✅ HTML Structure</li>
+            <li>✅ CSS Styling</li>
+            <li>✅ JavaScript (below)</li>
+        </ul>
+        
+        <button onclick="testFunction()">Click me to test JavaScript!</button>
+        <p id="output"></p>
+    </div>
+
+    <script>
+        function testFunction() {
+            document.getElementById('output').innerHTML = 
+                '<strong>JavaScript is working! ✅</strong><br>' +
+                'Time: ' + new Date().toLocaleTimeString();
+        }
+        
+        // Auto-run on page load
+        console.log('Test HTML page loaded successfully!');
+    </script>
+</body>
+</html>

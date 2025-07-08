@@ -13,14 +13,15 @@ export const GlobalStyles = createGlobalStyle`
   }
 
   body {
-    font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 
-                 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-    background-color: ${props => props.theme.colors.background};
+    font-family: 'Orbitron', 'Roboto Mono', 'Courier New', monospace;
+    background: linear-gradient(135deg, ${props => props.theme.colors.background} 0%, #1a0033 50%, #000000 100%);
+    background-attachment: fixed;
     color: ${props => props.theme.colors.text};
     font-size: ${props => props.theme.fontSizes.medium};
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
   }
 
   #root {
@@ -30,7 +31,7 @@ export const GlobalStyles = createGlobalStyle`
     flex-direction: column;
   }
 
-  /* Scrollbar styling */
+  /* Cyberpunk Scrollbar styling */
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -38,26 +39,31 @@ export const GlobalStyles = createGlobalStyle`
 
   ::-webkit-scrollbar-track {
     background: ${props => props.theme.colors.surface};
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: ${props => props.theme.colors.border};
     border-radius: 4px;
   }
 
-  ::-webkit-scrollbar-thumb:hover {
-    background: ${props => props.theme.colors.borderHover};
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(45deg, ${props => props.theme.colors.primary}, ${props => props.theme.colors.border});
+    border-radius: 4px;
+    box-shadow: ${props => props.theme.shadows.small};
   }
 
-  /* Selection styling */
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(45deg, ${props => props.theme.colors.primaryHover}, ${props => props.theme.colors.borderHover});
+    box-shadow: ${props => props.theme.shadows.neonCyan};
+  }
+
+  /* Cyberpunk Selection styling */
   ::selection {
     background-color: ${props => props.theme.colors.primary}40;
+    text-shadow: 0 0 10px ${props => props.theme.colors.primary};
   }
 
-  /* Focus outline */
+  /* Neon Focus outline */
   *:focus {
     outline: 2px solid ${props => props.theme.colors.primary};
     outline-offset: 2px;
+    box-shadow: ${props => props.theme.shadows.neonCyan};
   }
 
   /* Button reset */
@@ -226,5 +232,50 @@ export const GlobalStyles = createGlobalStyle`
   @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+  }
+
+  @keyframes neonPulse {
+    0%, 100% { 
+      text-shadow: 0 0 5px currentColor, 0 0 10px currentColor, 0 0 15px currentColor;
+    }
+    50% { 
+      text-shadow: 0 0 2px currentColor, 0 0 5px currentColor, 0 0 8px currentColor;
+    }
+  }
+
+  @keyframes borderGlow {
+    0%, 100% { 
+      box-shadow: 0 0 5px ${props => props.theme.colors.primary}, 0 0 10px ${props => props.theme.colors.primary};
+    }
+    50% { 
+      box-shadow: 0 0 10px ${props => props.theme.colors.primary}, 0 0 20px ${props => props.theme.colors.primary}, 0 0 30px ${props => props.theme.colors.primary};
+    }
+  }
+
+  @keyframes dataFlow {
+    0% { transform: translateX(-100%); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateX(100%); opacity: 0; }
+  }
+
+  /* Cyberpunk utility classes */
+  .neon-text {
+    animation: neonPulse 2s ease-in-out infinite;
+  }
+
+  .cyber-border {
+    animation: borderGlow 3s ease-in-out infinite;
+  }
+
+  .data-stream::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent, ${props => props.theme.colors.primary}40, transparent);
+    animation: dataFlow 2s linear infinite;
   }
 `;

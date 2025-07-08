@@ -1,14 +1,32 @@
 // IPC service for renderer process communication with main process
 
 import { IpcMessage } from '../../shared/types';
+import * as monaco from 'monaco-editor';
 
 declare global {
   interface Window {
-    electronAPI: {
+    electronAPI?: {
       invoke: (channel: string, ...args: any[]) => Promise<any>;
       send: (channel: string, ...args: any[]) => void;
       on: (channel: string, callback: (...args: any[]) => void) => void;
       removeAllListeners: (channel: string) => void;
+      readFile: (filePath: string) => Promise<{success: boolean, content?: string, error?: string}>;
+      writeFile: (filePath: string, content: string) => Promise<{success: boolean, error?: string}>;
+      executeCommand: (command: string, cwd?: string) => Promise<{success: boolean, stdout?: string, stderr?: string, exitCode?: number}>;
+      openFileDialog: () => Promise<{canceled: boolean, filePaths: string[]}>;
+      openDirectoryDialog: () => Promise<{canceled: boolean, filePaths: string[]}>;
+      readDirectory: (dirPath: string) => Promise<{success: boolean, files?: Array<{name: string, isDirectory: boolean, path: string}>, error?: string}>;
+      aiChat: (messages: any[]) => Promise<any>;
+      createTerminal: (options: { id: string; cwd?: string; cols?: number; rows?: number }) => Promise<{success: boolean, id?: string, error?: string}>;
+      writeToTerminal: (id: string, data: string) => Promise<{success: boolean, error?: string}>;
+      resizeTerminal: (id: string, cols: number, rows: number) => Promise<{success: boolean, error?: string}>;
+      killTerminal: (id: string) => Promise<{success: boolean, error?: string}>;
+      onTerminalData: (callback: (data: { id: string; data: string }) => void) => void;
+      onTerminalExit: (callback: (data: { id: string; exitCode: number }) => void) => void;
+      browserNavigate: (url: string) => Promise<void>;
+      platform: string;
+      arch: string;
+      versions: any;
     };
   }
 }
@@ -123,12 +141,61 @@ class IPCService {
     }
   }
 
-  // Enhanced editor operations for AI integration
-  async getEditorContext(): Promise<{ fileName?: string; content?: string; cursorPosition?: any; selectedText?: string }> {
-    if (!window.electronAPI) {
-      return {};
+  // Retrieve editor context for AI integration, including diagnostics/errors
+  async getEditorContext(): Promise<{
+    fileName?: string;
+    content?: string;
+    cursorPosition?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
+    selectedText?: string;
+    errors?: Array<{
+      message: string;
+      startLineNumber: number;
+      startColumn: number;
+      endLineNumber: number;
+      endColumn: number;
+      severity: number;
+    }>;
+  }> {
+    // Attempt to gather context from the active Monaco editor instance
+    const editor = (window as any).__galactusEditor as monaco.editor.IStandaloneCodeEditor | undefined;
+    const fileName = (window as any).__galactusCurrentFileName as string | undefined;
+    let content: string | undefined;
+    let selectedText: string | undefined;
+    let cursorPosition: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number } | undefined;
+    let errors: Array<{
+      message: string;
+      startLineNumber: number;
+      startColumn: number;
+      endLineNumber: number;
+      endColumn: number;
+      severity: number;
+    }> = [];
+    if (editor) {
+      const model = editor.getModel();
+      if (model) {
+        content = model.getValue();
+        const markers = monaco.editor.getModelMarkers({ resource: model.uri });
+        errors = markers.map(m => ({
+          message: m.message,
+          startLineNumber: m.startLineNumber,
+          startColumn: m.startColumn,
+          endLineNumber: m.endLineNumber,
+          endColumn: m.endColumn,
+          severity: m.severity
+        }));
+      }
+      const sel = editor.getSelection();
+      if (sel && editor.getModel()) {
+        cursorPosition = {
+          startLineNumber: sel.startLineNumber,
+          startColumn: sel.startColumn,
+          endLineNumber: sel.endLineNumber,
+          endColumn: sel.endColumn
+        };
+        selectedText = editor.getModel()!.getValueInRange(sel);
+      }
     }
-    return await window.electronAPI.invoke('editor:get-context');
+    return { fileName, content, selectedText, cursorPosition, errors };
   }
 
   async insertCodeAtPosition(code: string, position?: any): Promise<void> {
@@ -146,6 +213,12 @@ class IPCService {
   async formatEditorCode(): Promise<void> {
     if (window.electronAPI) {
       window.electronAPI.send('editor:format-code');
+    }
+  }
+
+  async selectAllEditorText(): Promise<void> {
+    if (window.electronAPI) {
+      window.electronAPI.send('editor:select-all');
     }
   }
 

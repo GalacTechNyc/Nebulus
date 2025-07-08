@@ -23,7 +23,7 @@ describe('IPCService', () => {
     (window as any).electronAPI.invoke = jest.fn().mockResolvedValue(mockResponse);
 
     const res = await ipcService.chatWithAI([{ role: 'user', content: 'hi' }]);
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('ai:chat', [{ role: 'user', content: 'hi' }]);
+    expect(window.electronAPI!.invoke).toHaveBeenCalledWith('ai:chat', [{ role: 'user', content: 'hi' }]);
     expect(res).toEqual(mockResponse);
   });
 
@@ -36,7 +36,7 @@ describe('IPCService', () => {
   test('fileExists invokes correct channel and returns boolean', async () => {
     (window as any).electronAPI = { invoke: jest.fn().mockResolvedValue(true) };
     const exists = await ipcService.fileExists('/some/file');
-    expect(window.electronAPI.invoke).toHaveBeenCalledWith('file:exists', '/some/file');
+    expect(window.electronAPI!.invoke).toHaveBeenCalledWith('file:exists', '/some/file');
     expect(exists).toBe(true);
   });
 });

@@ -1,60 +1,60 @@
 export const darkTheme = {
   colors: {
-    // Background colors
-    background: '#0D1117',
-    surface: '#161B22',
-    surfaceHover: '#21262D',
+    // Cyberpunk Background colors
+    background: '#0A0A0A',
+    surface: '#111111',
+    surfaceHover: '#1A1A1A',
     
-    // Text colors
-    text: '#F0F6FC',
-    textSecondary: '#8B949E',
-    textMuted: '#6E7681',
+    // Neon Text colors
+    text: '#E0E0E0',
+    textSecondary: '#00D4FF',
+    textMuted: '#666666',
     
-    // Border colors
-    border: '#30363D',
-    borderHover: '#484F58',
-    borderActive: '#F78166',
+    // Cyberpunk Border colors
+    border: '#FF006E',
+    borderHover: '#FF1B8D',
+    borderActive: '#FF3FA4',
     
-    // Primary colors
-    primary: '#58A6FF',
-    primaryHover: '#1F6FEB',
-    primaryActive: '#1158C7',
+    // Neon Primary colors
+    primary: '#00FFFF',
+    primaryHover: '#00E6E6',
+    primaryActive: '#00CCCC',
     
-    // Status colors
-    success: '#3FB950',
-    warning: '#D29922',
-    error: '#F85149',
-    info: '#58A6FF',
+    // Vibrant Status colors
+    success: '#00FF41',
+    warning: '#FFD700',
+    error: '#FF073A',
+    info: '#00D4FF',
     
-    // Syntax highlighting colors
+    // Enhanced Syntax highlighting colors
     syntax: {
-      keyword: '#FF7B72',
-      string: '#A5C261',
-      comment: '#6E7681',
-      number: '#79C0FF',
-      operator: '#FF7B72',
-      function: '#D2A8FF',
-      variable: '#FFA657',
-      type: '#F0F6FC',
-      tag: '#7EE787',
-      attribute: '#79C0FF',
-      value: '#A5C261'
+      keyword: '#FF0080',
+      string: '#00FF80',
+      comment: '#666666',
+      number: '#FFFF00',
+      operator: '#FF0080',
+      function: '#FF8000',
+      variable: '#00FFFF',
+      type: '#FF6000',
+      tag: '#80FF00',
+      attribute: '#0080FF',
+      value: '#00FF80'
     },
     
-    // AI Chat colors
+    // Cyberpunk AI Chat colors
     ai: {
-      user: '#238636',
-      assistant: '#1F6FEB',
-      system: '#8B949E',
-      error: '#DA3633'
+      user: '#00FF41',
+      assistant: '#00FFFF',
+      system: '#FF006E',
+      error: '#FF073A'
     },
     
     // Terminal colors
     terminal: {
-      background: '#0D1117',
-      foreground: '#F0F6FC',
-      cursor: '#58A6FF',
-      selection: '#58A6FF40'
+      background: '#0A0A0A',
+      foreground: '#00FF00',
+      cursor: '#00FFFF',
+      selection: '#00FFFF40'
     }
   },
   
@@ -83,10 +83,14 @@ export const darkTheme = {
   },
   
   shadows: {
-    small: '0 1px 3px rgba(0, 0, 0, 0.12)',
-    medium: '0 4px 6px rgba(0, 0, 0, 0.16)',
-    large: '0 10px 25px rgba(0, 0, 0, 0.20)',
-    xlarge: '0 20px 40px rgba(0, 0, 0, 0.24)'
+    small: '0 0 5px rgba(0, 255, 255, 0.3)',
+    medium: '0 0 10px rgba(255, 0, 110, 0.4)',
+    large: '0 0 20px rgba(0, 255, 255, 0.5)',
+    xlarge: '0 0 30px rgba(255, 0, 110, 0.6)',
+    neonCyan: '0 0 10px #00FFFF, 0 0 20px #00FFFF, 0 0 40px #00FFFF',
+    neonPink: '0 0 10px #FF006E, 0 0 20px #FF006E, 0 0 40px #FF006E',
+    neonGreen: '0 0 10px #00FF41, 0 0 20px #00FF41, 0 0 40px #00FF41',
+    neonYellow: '0 0 10px #FFFF00, 0 0 20px #FFFF00, 0 0 40px #FFFF00'
   },
   
   zIndex: {

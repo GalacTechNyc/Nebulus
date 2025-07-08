@@ -29,7 +29,8 @@ module.exports = {
     ]
   },
   externals: {
-    'fsevents': 'commonjs fsevents'
+    'fsevents': 'commonjs fsevents',
+    'node-pty': 'commonjs node-pty'
   },
   node: {
     __dirname: false,

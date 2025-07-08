@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { visionService, VisionAnalysisResult, ScreenshotOptions } from '../../services/vision-service';
-import { logger } from '../../../shared/security/error-handling';
+import { errorLogger as logger } from '../../../shared/security/error-handling';
 
 export interface AIVisionPanelProps {
   webviewId?: string;

@@ -4,7 +4,7 @@
  */
 
 import { ipcMain, BrowserWindow, webContents } from 'electron';
-import { logger } from '../../shared/security/error-handling';
+import { errorLogger as logger } from '../../shared/security/error-handling';
 import { secureIPCHandler, IpcChannels } from '../../shared/security/ipc-validation';
 
 // AI Service integrations

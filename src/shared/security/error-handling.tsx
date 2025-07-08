@@ -250,7 +250,7 @@ export function withErrorBoundary<P extends object>(
           const FallbackComponent = fallbackComponent;
           return (
             <FallbackComponent
-              error={this.state.error!}
+              error={this.state.error || new Error('Unknown error')}
               retry={() => this.setState({ hasError: false, error: undefined })}
             />
           );

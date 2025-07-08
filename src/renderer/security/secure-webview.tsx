@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { logger } from '../../shared/security/error-handling';
+import { errorLogger as logger } from '../../shared/security/error-handling';
 
 export interface SecureWebviewProps {
   src?: string;

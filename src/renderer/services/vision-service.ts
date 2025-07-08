@@ -3,7 +3,7 @@
  * Provides screenshot capture, image analysis, and AI-powered visual insights
  */
 
-import { logger } from '../../shared/security/error-handling';
+import { errorLogger as logger } from '../../shared/security/error-handling';
 
 export interface ScreenshotOptions {
   quality?: number;

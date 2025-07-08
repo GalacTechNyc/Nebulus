@@ -3,7 +3,7 @@
  * Implements caching, batching, and performance optimizations for AI services
  */
 
-import { logger } from '../security/error-handling';
+import { errorLogger as logger } from '../security/error-handling';
 import { performanceMonitor } from './performance-monitor';
 
 export interface AIRequest {

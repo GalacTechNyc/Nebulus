@@ -3,7 +3,7 @@
  * Tracks and optimizes application performance across all processes
  */
 
-import { logger } from '../security/error-handling';
+import { errorLogger as logger } from '../security/error-handling';
 
 export interface PerformanceMetrics {
   timestamp: number;

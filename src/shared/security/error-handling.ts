@@ -1,236 +1,226 @@
 /**
- * Error Handling and Logging System
- * Provides structured error handling, logging, and monitoring
+ * Enhanced Error Handling and Recovery System
+ * Provides comprehensive error handling, logging, and recovery mechanisms
  */
 
-export enum LogLevel {
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3,
-  FATAL = 4,
+import React from 'react';
+import { ipcRenderer } from 'electron';
+
+// Error types for better categorization
+export enum ErrorType {
+  NETWORK = 'NETWORK',
+  FILESYSTEM = 'FILESYSTEM',
+  VALIDATION = 'VALIDATION',
+  RUNTIME = 'RUNTIME',
+  SECURITY = 'SECURITY',
+  IPC = 'IPC',
+  UNKNOWN = 'UNKNOWN'
 }
 
-export interface LogEntry {
-  timestamp: string;
-  level: LogLevel;
-  message: string;
-  context?: any;
-  error?: Error;
-  stack?: string;
-  processId: number;
-  component: string;
+// Error severity levels
+export enum ErrorSeverity {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL'
 }
 
-export interface ErrorContext {
-  component: string;
-  operation: string;
+// Enhanced error interface
+export interface EnhancedError extends Error {
+  type: ErrorType;
+  severity: ErrorSeverity;
+  context?: Record<string, any>;
+  timestamp: Date;
   userId?: string;
   sessionId?: string;
-  metadata?: any;
+  recoverable: boolean;
+  retryCount?: number;
 }
 
-/**
- * Custom error classes for different types of errors
- */
-export class SecurityError extends Error {
-  constructor(message: string, public context?: ErrorContext) {
-    super(message);
-    this.name = 'SecurityError';
-  }
+// Error recovery strategies
+export interface RecoveryStrategy {
+  canRecover: (error: EnhancedError) => boolean;
+  recover: (error: EnhancedError) => Promise<boolean>;
+  maxRetries: number;
 }
 
-export class ValidationError extends Error {
-  constructor(message: string, public context?: ErrorContext) {
-    super(message);
-    this.name = 'ValidationError';
-  }
-}
+// Error logging service
+class ErrorLogger {
+  private static instance: ErrorLogger;
+  private logs: EnhancedError[] = [];
+  private maxLogs = 1000;
 
-export class FileSystemError extends Error {
-  constructor(message: string, public context?: ErrorContext) {
-    super(message);
-    this.name = 'FileSystemError';
-  }
-}
-
-export class IPCError extends Error {
-  constructor(message: string, public context?: ErrorContext) {
-    super(message);
-    this.name = 'IPCError';
-  }
-}
-
-export class AIServiceError extends Error {
-  constructor(message: string, public context?: ErrorContext) {
-    super(message);
-    this.name = 'AIServiceError';
-  }
-}
-
-/**
- * Logger class with structured logging
- */
-export class Logger {
-  private static instance: Logger;
-  private logLevel: LogLevel = LogLevel.INFO;
-  private logEntries: LogEntry[] = [];
-  private maxLogEntries: number = 1000;
-
-  private constructor() {}
-
-  static getInstance(): Logger {
-    if (!Logger.instance) {
-      Logger.instance = new Logger();
+  static getInstance(): ErrorLogger {
+    if (!ErrorLogger.instance) {
+      ErrorLogger.instance = new ErrorLogger();
     }
-    return Logger.instance;
+    return ErrorLogger.instance;
   }
 
-  setLogLevel(level: LogLevel): void {
-    this.logLevel = level;
-  }
-
-  private createLogEntry(
-    level: LogLevel,
-    message: string,
-    component: string,
-    context?: any,
-    error?: Error
-  ): LogEntry {
-    return {
-      timestamp: new Date().toISOString(),
-      level,
-      message,
-      context,
-      error,
-      stack: error?.stack,
-      processId: process.pid,
-      component,
-    };
-  }
-
-  private log(entry: LogEntry): void {
-    if (entry.level < this.logLevel) {
-      return;
-    }
-
-    // Add to in-memory log
-    this.logEntries.push(entry);
+  log(error: EnhancedError): void {
+    this.logs.push(error);
     
-    // Maintain max log entries
-    if (this.logEntries.length > this.maxLogEntries) {
-      this.logEntries.shift();
+    // Keep only the most recent logs
+    if (this.logs.length > this.maxLogs) {
+      this.logs = this.logs.slice(-this.maxLogs);
     }
 
-    // Console output
-    const levelName = LogLevel[entry.level];
-    const prefix = `[${entry.timestamp}] [${levelName}] [${entry.component}]`;
+    // Send to main process for persistent logging
+    if (typeof ipcRenderer !== 'undefined') {
+      ipcRenderer.send('log-error', {
+        message: error.message,
+        stack: error.stack,
+        type: error.type,
+        severity: error.severity,
+        context: error.context,
+        timestamp: error.timestamp
+      });
+    }
+
+    // Console logging for development
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Enhanced Error:', error);
+    }
+  }
+
+  getLogs(filter?: { type?: ErrorType; severity?: ErrorSeverity }): EnhancedError[] {
+    if (!filter) return [...this.logs];
     
-    switch (entry.level) {
-      case LogLevel.DEBUG:
-        console.debug(prefix, entry.message, entry.context);
-        break;
-      case LogLevel.INFO:
-        console.info(prefix, entry.message, entry.context);
-        break;
-      case LogLevel.WARN:
-        console.warn(prefix, entry.message, entry.context);
-        break;
-      case LogLevel.ERROR:
-      case LogLevel.FATAL:
-        console.error(prefix, entry.message, entry.error || entry.context);
-        if (entry.stack) {
-          console.error(entry.stack);
-        }
-        break;
-    }
-
-    // In production, send to external logging service
-    if (process.env.NODE_ENV === 'production' && entry.level >= LogLevel.ERROR) {
-      this.sendToExternalLogger(entry);
-    }
-  }
-
-  private sendToExternalLogger(entry: LogEntry): void {
-    // Implementation for external logging service
-    // This could be Sentry, LogRocket, or custom logging endpoint
-    console.log('EXTERNAL_LOG:', JSON.stringify(entry));
-  }
-
-  debug(message: string, component: string, context?: any): void {
-    this.log(this.createLogEntry(LogLevel.DEBUG, message, component, context));
-  }
-
-  info(message: string, component: string, context?: any): void {
-    this.log(this.createLogEntry(LogLevel.INFO, message, component, context));
-  }
-
-  warn(message: string, component: string, context?: any): void {
-    this.log(this.createLogEntry(LogLevel.WARN, message, component, context));
-  }
-
-  error(message: string, component: string, error?: Error, context?: any): void {
-    this.log(this.createLogEntry(LogLevel.ERROR, message, component, context, error));
-  }
-
-  fatal(message: string, component: string, error?: Error, context?: any): void {
-    this.log(this.createLogEntry(LogLevel.FATAL, message, component, context, error));
-  }
-
-  getRecentLogs(count: number = 100): LogEntry[] {
-    return this.logEntries.slice(-count);
+    return this.logs.filter(log => {
+      if (filter.type && log.type !== filter.type) return false;
+      if (filter.severity && log.severity !== filter.severity) return false;
+      return true;
+    });
   }
 
   clearLogs(): void {
-    this.logEntries = [];
+    this.logs = [];
   }
 }
 
-/**
- * Global error handler for unhandled errors
- */
-export const setupGlobalErrorHandling = (): void => {
-  const logger = Logger.getInstance();
+// Enhanced error creation utility
+export function createEnhancedError(
+  message: string,
+  type: ErrorType = ErrorType.UNKNOWN,
+  severity: ErrorSeverity = ErrorSeverity.MEDIUM,
+  context?: Record<string, any>,
+  originalError?: Error
+): EnhancedError {
+  const error = new Error(message) as EnhancedError;
+  
+  error.type = type;
+  error.severity = severity;
+  error.context = context;
+  error.timestamp = new Date();
+  error.recoverable = severity !== ErrorSeverity.CRITICAL;
+  error.retryCount = 0;
 
-  // Handle unhandled promise rejections
-  process.on('unhandledRejection', (reason, promise) => {
-    logger.fatal(
-      'Unhandled Promise Rejection',
-      'global',
-      reason instanceof Error ? reason : new Error(String(reason)),
-      { promise }
-    );
-  });
+  if (originalError) {
+    error.stack = originalError.stack;
+    error.cause = originalError;
+  }
 
-  // Handle uncaught exceptions
-  process.on('uncaughtException', (error) => {
-    logger.fatal('Uncaught Exception', 'global', error);
-    
-    // In production, you might want to restart the process
-    if (process.env.NODE_ENV === 'production') {
-      process.exit(1);
+  return error;
+}
+
+// Error recovery manager
+class ErrorRecoveryManager {
+  private static instance: ErrorRecoveryManager;
+  private strategies: RecoveryStrategy[] = [];
+
+  static getInstance(): ErrorRecoveryManager {
+    if (!ErrorRecoveryManager.instance) {
+      ErrorRecoveryManager.instance = new ErrorRecoveryManager();
     }
-  });
+    return ErrorRecoveryManager.instance;
+  }
 
-  // Handle warnings
-  process.on('warning', (warning) => {
-    logger.warn('Process Warning', 'global', {
-      name: warning.name,
-      message: warning.message,
-      stack: warning.stack,
-    });
-  });
+  addStrategy(strategy: RecoveryStrategy): void {
+    this.strategies.push(strategy);
+  }
+
+  async attemptRecovery(error: EnhancedError): Promise<boolean> {
+    if (!error.recoverable) {
+      return false;
+    }
+
+    for (const strategy of this.strategies) {
+      if (strategy.canRecover(error)) {
+        try {
+          const recovered = await strategy.recover(error);
+          if (recovered) {
+            return true;
+          }
+        } catch (recoveryError) {
+          console.error('Recovery strategy failed:', recoveryError);
+        }
+      }
+    }
+
+    return false;
+  }
+}
+
+// Default recovery strategies
+const networkRetryStrategy: RecoveryStrategy = {
+  canRecover: (error) => error.type === ErrorType.NETWORK && (error.retryCount || 0) < 3,
+  recover: async (error) => {
+    error.retryCount = (error.retryCount || 0) + 1;
+    await new Promise(resolve => setTimeout(resolve, 1000 * error.retryCount!));
+    return true;
+  },
+  maxRetries: 3
 };
 
-/**
- * Error boundary for React components
- */
-export const createErrorBoundary = (component: string) => {
-  return class ErrorBoundary extends React.Component<
-    { children: React.ReactNode },
-    { hasError: boolean; error?: Error }
-  > {
-    constructor(props: { children: React.ReactNode }) {
+const fileSystemRetryStrategy: RecoveryStrategy = {
+  canRecover: (error) => error.type === ErrorType.FILESYSTEM && (error.retryCount || 0) < 2,
+  recover: async (error) => {
+    error.retryCount = (error.retryCount || 0) + 1;
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return true;
+  },
+  maxRetries: 2
+};
+
+// Initialize recovery manager with default strategies
+const recoveryManager = ErrorRecoveryManager.getInstance();
+recoveryManager.addStrategy(networkRetryStrategy);
+recoveryManager.addStrategy(fileSystemRetryStrategy);
+
+// Global error handler
+export function handleError(error: Error | EnhancedError, context?: Record<string, any>): void {
+  let enhancedError: EnhancedError;
+
+  if ('type' in error && 'severity' in error) {
+    enhancedError = error as EnhancedError;
+  } else {
+    enhancedError = createEnhancedError(
+      error.message,
+      ErrorType.UNKNOWN,
+      ErrorSeverity.MEDIUM,
+      context,
+      error
+    );
+  }
+
+  // Log the error
+  ErrorLogger.getInstance().log(enhancedError);
+
+  // Attempt recovery if possible
+  if (enhancedError.recoverable) {
+    recoveryManager.attemptRecovery(enhancedError).catch(recoveryError => {
+      console.error('Failed to recover from error:', recoveryError);
+    });
+  }
+}
+
+// React Error Boundary HOC
+export function withErrorBoundary<P extends object>(
+  Component: React.ComponentType<P>,
+  fallbackComponent?: React.ComponentType<{ error: Error; retry: () => void }>
+) {
+  return class ErrorBoundary extends React.Component<P, { hasError: boolean; error?: Error }> {
+    constructor(props: P) {
       super(props);
       this.state = { hasError: false };
     }
@@ -240,153 +230,70 @@ export const createErrorBoundary = (component: string) => {
     }
 
     componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-      const logger = Logger.getInstance();
-      logger.error(
-        'React Component Error',
-        component,
-        error,
+      const enhancedError = createEnhancedError(
+        error.message,
+        ErrorType.RUNTIME,
+        ErrorSeverity.HIGH,
         {
           componentStack: errorInfo.componentStack,
-          errorBoundary: component,
-        }
+          errorBoundary: Component.name
+        },
+        error
       );
+
+      handleError(enhancedError);
     }
 
     render() {
       if (this.state.hasError) {
+        if (fallbackComponent) {
+          const FallbackComponent = fallbackComponent;
+          return (
+            <FallbackComponent
+              error={this.state.error!}
+              retry={() => this.setState({ hasError: false, error: undefined })}
+            />
+          );
+        }
+
         return (
           <div className="error-boundary">
-            <h2>Something went wrong in {component}</h2>
+            <h2>Something went wrong</h2>
             <details>
               <summary>Error details</summary>
               <pre>{this.state.error?.stack}</pre>
             </details>
-            <button onClick={() => this.setState({ hasError: false })}>
+            <button onClick={() => this.setState({ hasError: false, error: undefined })}>
               Try again
             </button>
           </div>
         );
       }
 
-      return this.props.children;
+      return <Component {...this.props} />;
     }
   };
-};
+}
 
-/**
- * Async error wrapper for better error handling
- */
+// Async error wrapper for better error handling
 export const withErrorHandling = <T extends any[], R>(
   fn: (...args: T) => Promise<R>,
-  component: string,
-  operation: string
+  context?: Record<string, any>
 ) => {
   return async (...args: T): Promise<R> => {
-    const logger = Logger.getInstance();
-    
     try {
-      logger.debug(`Starting ${operation}`, component, { args });
-      const result = await fn(...args);
-      logger.debug(`Completed ${operation}`, component);
-      return result;
+      return await fn(...args);
     } catch (error) {
-      logger.error(
-        `Failed ${operation}`,
-        component,
-        error instanceof Error ? error : new Error(String(error)),
-        { args }
-      );
+      handleError(error as Error, context);
       throw error;
     }
   };
 };
 
-/**
- * Performance monitoring wrapper
- */
-export const withPerformanceMonitoring = <T extends any[], R>(
-  fn: (...args: T) => Promise<R>,
-  component: string,
-  operation: string
-) => {
-  return async (...args: T): Promise<R> => {
-    const logger = Logger.getInstance();
-    const startTime = performance.now();
-    
-    try {
-      const result = await fn(...args);
-      const duration = performance.now() - startTime;
-      
-      logger.info(`Performance: ${operation}`, component, {
-        duration: `${duration.toFixed(2)}ms`,
-        args: args.length,
-      });
-      
-      // Warn about slow operations
-      if (duration > 1000) {
-        logger.warn(`Slow operation detected: ${operation}`, component, {
-          duration: `${duration.toFixed(2)}ms`,
-        });
-      }
-      
-      return result;
-    } catch (error) {
-      const duration = performance.now() - startTime;
-      logger.error(
-        `Performance: ${operation} failed`,
-        component,
-        error instanceof Error ? error : new Error(String(error)),
-        { duration: `${duration.toFixed(2)}ms` }
-      );
-      throw error;
-    }
-  };
-};
+// Export instances for use throughout the application
+export const errorLogger = ErrorLogger.getInstance();
+export const errorRecoveryManager = ErrorRecoveryManager.getInstance();
 
-/**
- * Retry mechanism with exponential backoff
- */
-export const withRetry = <T extends any[], R>(
-  fn: (...args: T) => Promise<R>,
-  maxRetries: number = 3,
-  baseDelay: number = 1000,
-  component: string = 'unknown'
-) => {
-  return async (...args: T): Promise<R> => {
-    const logger = Logger.getInstance();
-    let lastError: Error;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        return await fn(...args);
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        
-        if (attempt === maxRetries) {
-          logger.error(
-            `All retry attempts failed`,
-            component,
-            lastError,
-            { attempts: maxRetries }
-          );
-          throw lastError;
-        }
-        
-        const delay = baseDelay * Math.pow(2, attempt - 1);
-        logger.warn(
-          `Attempt ${attempt} failed, retrying in ${delay}ms`,
-          component,
-          lastError
-        );
-        
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-    
-    throw lastError!;
-  };
-};
-
-// Export singleton logger instance
-export const logger = Logger.getInstance();
+// Export types and utilities
+export { ErrorLogger, ErrorRecoveryManager };
 

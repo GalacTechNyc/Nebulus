@@ -1,484 +1,398 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import styled from 'styled-components';
-import { useAppState } from '../../hooks/useAppState';
-import { ipcService } from '../../services/ipc';
+import React, { useState, useRef, useEffect } from 'react';
+import { Terminal as XTerm } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import '@xterm/xterm/css/xterm.css';
 
-const TerminalContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background-color: #0D1117;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
-`;
-
-const TerminalHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: ${props => props.theme.spacing.sm};
-  background-color: ${props => props.theme.colors.surface};
-  border-bottom: 1px solid ${props => props.theme.colors.border};
-  font-size: ${props => props.theme.fontSizes.small};
-`;
-
-const TerminalTitle = styled.div`
-  color: ${props => props.theme.colors.text};
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: ${props => props.theme.spacing.xs};
-`;
-
-const StatusIndicator = styled.div<{ $connected: boolean }>`
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: ${props => props.$connected ? '#7CE38B' : '#FF7B72'};
-`;
-
-const TerminalActions = styled.div`
-  display: flex;
-  gap: ${props => props.theme.spacing.xs};
-`;
-
-const TerminalButton = styled.button`
-  padding: ${props => props.theme.spacing.xs} ${props => props.theme.spacing.sm};
-  background-color: ${props => props.theme.colors.background};
-  border: 1px solid ${props => props.theme.colors.border};
-  border-radius: ${props => props.theme.borderRadius.small};
-  color: ${props => props.theme.colors.text};
-  font-size: ${props => props.theme.fontSizes.small};
-  cursor: pointer;
-  
-  &:hover {
-    background-color: ${props => props.theme.colors.surfaceHover};
-    border-color: ${props => props.theme.colors.borderHover};
-  }
-  
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-`;
-
-const TerminalOutput = styled.div`
-  flex: 1;
-  padding: ${props => props.theme.spacing.sm};
-  overflow-y: auto;
-  font-size: 14px;
-  line-height: 1.4;
-  color: #F0F6FC;
-  background-color: #0D1117;
-  
-  /* Custom scrollbar */
-  &::-webkit-scrollbar {
-    width: 8px;
-  }
-  
-  &::-webkit-scrollbar-track {
-    background: #161B22;
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background: #6E7681;
-    border-radius: 4px;
-  }
-  
-  &::-webkit-scrollbar-thumb:hover {
-    background: #8B949E;
-  }
-`;
-
-const OutputLine = styled.div<{ type?: 'command' | 'output' | 'error' | 'success' | 'info' }>`
-  margin-bottom: 4px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  
-  ${props => {
-    switch (props.type) {
-      case 'command':
-        return `
-          color: #79C0FF;
-          &::before {
-            content: '$ ';
-            color: #7CE38B;
-            font-weight: bold;
-          }
-        `;
-      case 'error':
-        return `color: #FF7B72;`;
-      case 'success':
-        return `color: #7CE38B;`;
-      case 'info':
-        return `color: #FFA657;`;
-      case 'output':
-      default:
-        return `color: #F0F6FC;`;
-    }
-  }}
-`;
-
-const TerminalInput = styled.div`
-  display: flex;
-  align-items: center;
-  padding: ${props => props.theme.spacing.sm};
-  border-top: 1px solid ${props => props.theme.colors.border};
-  background-color: #161B22;
-`;
-
-const InputPrompt = styled.span`
-  color: #7CE38B;
-  margin-right: ${props => props.theme.spacing.xs};
-  user-select: none;
-  font-weight: bold;
-`;
-
-const InputField = styled.input`
-  flex: 1;
-  background-color: transparent;
-  border: none;
-  outline: none;
-  font-family: inherit;
-  font-size: 14px;
-  color: #F0F6FC;
-  
-  &::placeholder {
-    color: #6E7681;
-  }
-`;
-
-const CurrentDirectory = styled.span`
-  color: #FFA657;
-  margin-right: ${props => props.theme.spacing.xs};
-  font-weight: 500;
-`;
-
-interface TerminalLine {
-  id: string;
-  type: 'command' | 'output' | 'error' | 'success' | 'info';
-  content: string;
-  timestamp: Date;
+interface TerminalProps {
+  className?: string;
 }
 
-const TerminalFixed: React.FC = () => {
-  const { state, dispatch } = useAppState();
-  const [currentCommand, setCurrentCommand] = useState('');
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [currentDirectory, setCurrentDirectory] = useState('/home/ubuntu/Nebulus');
-  const [isConnected, setIsConnected] = useState(true);
-  const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([
-    {
-      id: '1',
-      type: 'success',
-      content: '✅ GalactusIDE Terminal Ready!\n🔧 Fixed: PTY connection issues resolved\n🚀 Full npm and shell command support enabled\n\nType "help" for available commands or try "npm --version"',
-      timestamp: new Date()
-    }
-  ]);
-  const outputRef = useRef<HTMLDivElement>(null);
+interface CommandHistory {
+  command: string;
+  output: string;
+  timestamp: Date;
+  exitCode: number;
+}
 
-  const scrollToBottom = () => {
-    if (outputRef.current) {
-      outputRef.current.scrollTop = outputRef.current.scrollHeight;
-    }
-  };
+const Terminal: React.FC<TerminalProps> = ({ className = '' }) => {
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const xtermRef = useRef<XTerm | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [currentCommand, setCurrentCommand] = useState('');
+  const [commandHistory, setCommandHistory] = useState<CommandHistory[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [currentDirectory, setCurrentDirectory] = useState('~/Nebulus');
+  const [isExecuting, setIsExecuting] = useState(false);
+
+  // Common commands for tab completion
+  const commonCommands = [
+    'npm install', 'npm run dev', 'npm run build', 'npm test', 'npm start',
+    'git status', 'git add', 'git commit', 'git push', 'git pull',
+    'ls', 'cd', 'pwd', 'mkdir', 'rm', 'cp', 'mv', 'cat', 'echo',
+    'code .', 'clear', 'exit'
+  ];
 
   useEffect(() => {
-    scrollToBottom();
-    
-    // Expose terminal content globally for AI context
-    (window as any).__galactusTerminalLines = terminalLines;
-    (window as any).__galactusTerminalContent = terminalLines.map(line => 
-      `${line.type === 'command' ? '$ ' : ''}${line.content}`
-    ).join('\n');
-  }, [terminalLines]);
+    if (!terminalRef.current) return;
 
-  const addLine = (type: 'command' | 'output' | 'error' | 'success' | 'info', content: string) => {
-    const newLine: TerminalLine = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      type,
-      content,
-      timestamp: new Date()
+    // Create terminal instance
+    const terminal = new XTerm({
+      theme: {
+        background: '#1a1a1a',
+        foreground: '#ffffff',
+        cursor: '#ffffff',
+        selection: '#ffffff30',
+        black: '#000000',
+        red: '#ff6b6b',
+        green: '#51cf66',
+        yellow: '#ffd43b',
+        blue: '#74c0fc',
+        magenta: '#f06292',
+        cyan: '#4dd0e1',
+        white: '#ffffff',
+        brightBlack: '#495057',
+        brightRed: '#ff8a80',
+        brightGreen: '#69f0ae',
+        brightYellow: '#ffff8d',
+        brightBlue: '#82b1ff',
+        brightMagenta: '#ff80ab',
+        brightCyan: '#84ffff',
+        brightWhite: '#ffffff'
+      },
+      fontSize: 14,
+      fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+      cursorBlink: true,
+      cursorStyle: 'block',
+      scrollback: 1000,
+      tabStopWidth: 4
+    });
+
+    // Create addons
+    const fitAddon = new FitAddon();
+    const webLinksAddon = new WebLinksAddon();
+
+    // Load addons
+    terminal.loadAddon(fitAddon);
+    terminal.loadAddon(webLinksAddon);
+
+    // Open terminal
+    terminal.open(terminalRef.current);
+    fitAddon.fit();
+
+    // Store references
+    xtermRef.current = terminal;
+    fitAddonRef.current = fitAddon;
+
+    // Welcome message
+    terminal.writeln('\\x1b[32m✓ Terminal Ready (No PTY Issues!)\\x1b[0m');
+    terminal.writeln('\\x1b[36mGalactusIDE Terminal - Enhanced Command Execution\\x1b[0m');
+    terminal.writeln('\\x1b[90mTip: Use Tab for command completion, ↑↓ for history\\x1b[0m');
+    terminal.writeln('');
+    writePrompt(terminal);
+
+    setIsConnected(true);
+
+    // Handle terminal input
+    terminal.onData((data) => {
+      handleTerminalInput(data, terminal);
+    });
+
+    // Handle resize
+    const handleResize = () => {
+      if (fitAddon) {
+        fitAddon.fit();
+      }
     };
-    setTerminalLines(prev => [...prev, newLine]);
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      terminal.dispose();
+    };
+  }, []);
+
+  const writePrompt = (terminal: XTerm) => {
+    const prompt = `\\x1b[32m➜\\x1b[0m \\x1b[36m${currentDirectory}\\x1b[0m \\x1b[90m$\\x1b[0m `;
+    terminal.write(prompt);
   };
 
-  const executeCommand = async (command: string) => {
-    if (!command.trim()) return;
+  const handleTerminalInput = (data: string, terminal: XTerm) => {
+    const code = data.charCodeAt(0);
 
-    // Add command to history
-    setCommandHistory(prev => [...prev, command]);
-    setHistoryIndex(-1);
-    
-    // Add command to output
-    addLine('command', command);
-
-    // Handle built-in commands
-    const cmd = command.trim().toLowerCase();
-    const [mainCmd, ...args] = command.trim().split(' ');
-    
-    if (cmd === 'help') {
-      addLine('info', `GalactusIDE Terminal - Available commands:
-
-📋 Built-in Commands:
-  help          - Show this help message
-  clear         - Clear terminal output
-  pwd           - Show current directory
-  cd [dir]      - Change directory
-  ls [path]     - List files and directories
-  mkdir [dir]   - Create directory
-  touch [file]  - Create file
-  cat [file]    - Display file content
-
-🚀 Development Commands:
-  npm [args]    - Run npm commands (install, run, start, test, build, etc.)
-  git [args]    - Run git commands
-  node [file]   - Run Node.js files
-  python [file] - Run Python files
-
-✅ This terminal now supports ALL shell operations!
-
-Examples:
-  npm install           - Install dependencies
-  npm run dev          - Start development server
-  npm test             - Run tests
-  git status           - Check git status
-  ls -la               - List files with details
-  cd src               - Change to src directory`);
-      return;
-    }
-    
-    if (cmd === 'clear') {
-      setTerminalLines([]);
-      return;
-    }
-    
-    if (cmd === 'pwd') {
-      addLine('output', currentDirectory);
-      return;
+    if (isExecuting) {
+      return; // Ignore input while executing
     }
 
-    // Handle cd command
-    if (cmd.startsWith('cd ')) {
-      const targetDir = args.join(' ').trim();
-      if (!targetDir || targetDir === '~') {
-        setCurrentDirectory('/home/ubuntu');
-        addLine('success', 'Changed to home directory');
-        return;
-      }
-      
-      if (targetDir === '..') {
-        const parentDir = currentDirectory.split('/').slice(0, -1).join('/') || '/';
-        setCurrentDirectory(parentDir);
-        addLine('success', `Changed to parent directory: ${parentDir}`);
-        return;
-      }
-      
-      // Build new path
-      let newPath;
-      if (targetDir.startsWith('/')) {
-        newPath = targetDir;
-      } else {
-        newPath = `${currentDirectory}/${targetDir}`.replace(/\/+/g, '/');
-      }
-      
-      setCurrentDirectory(newPath);
-      addLine('success', `Changed directory to: ${newPath}`);
-      return;
-    }
-    
-    // Handle npm commands with enhanced feedback
-    if (mainCmd.toLowerCase() === 'npm') {
-      if (args.length === 0) {
-        addLine('info', `npm commands available:
-  npm install           - Install dependencies
-  npm run dev          - Start development server  
-  npm run build        - Build for production
-  npm start            - Start the application
-  npm test             - Run tests
-  npm run lint         - Run linting
-  npm run format       - Format code
-  npm --version        - Show npm version
-
-✅ All npm commands are fully supported!`);
-        return;
-      }
-      
-      addLine('info', `Executing npm command: ${args.join(' ')}`);
-    }
-
-    // Handle git commands with enhanced feedback
-    if (mainCmd.toLowerCase() === 'git') {
-      if (args.length === 0) {
-        addLine('info', `git commands available:
-  git status           - Show working tree status
-  git add [files]      - Add files to staging
-  git commit -m "msg"  - Commit changes
-  git push             - Push to remote
-  git pull             - Pull from remote
-  git log              - Show commit history
-  git branch           - List branches
-
-✅ All git commands are fully supported!`);
-        return;
-      }
-      
-      addLine('info', `Executing git command: ${args.join(' ')}`);
-    }
-
-    // Execute real commands via IPC
-    try {
-      const result = await ipcService.executeCommand(command, currentDirectory);
-      
-      if (result.success) {
-        if (result.stdout && result.stdout.trim()) {
-          addLine('output', result.stdout);
-        }
-        if (result.stderr && result.stderr.trim()) {
-          // Some stderr output is just warnings, not errors
-          if (result.exitCode === 0) {
-            addLine('info', result.stderr);
-          } else {
-            addLine('error', result.stderr);
-          }
-        }
-        
-        // If no output and successful, show success message
-        if (!result.stdout && !result.stderr && result.exitCode === 0) {
-          addLine('success', 'Command executed successfully');
-        }
-        
-        // Update terminal state for AI context
-        dispatch({
-          type: 'ADD_TERMINAL_OUTPUT',
-          payload: `$ ${command}\n${result.stdout || ''}${result.stderr || ''}`
-        });
-        
-      } else {
-        addLine('error', `Command failed: ${result.stderr || result.error || 'Unknown error'}`);
-      }
-      
-    } catch (error) {
-      addLine('error', `Error executing command: ${error}`);
-    }
-  };
-
-  const handleCommandSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    executeCommand(currentCommand);
-    setCurrentCommand('');
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (commandHistory.length > 0) {
-        const newIndex = historyIndex === -1 ? commandHistory.length - 1 : Math.max(0, historyIndex - 1);
-        setHistoryIndex(newIndex);
-        setCurrentCommand(commandHistory[newIndex]);
-      }
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (historyIndex !== -1) {
-        const newIndex = historyIndex + 1;
-        if (newIndex >= commandHistory.length) {
-          setHistoryIndex(-1);
-          setCurrentCommand('');
+    switch (code) {
+      case 13: // Enter
+        if (currentCommand.trim()) {
+          executeCommand(currentCommand.trim(), terminal);
         } else {
-          setHistoryIndex(newIndex);
-          setCurrentCommand(commandHistory[newIndex]);
+          terminal.writeln('');
+          writePrompt(terminal);
         }
-      }
-    } else if (e.key === 'Tab') {
-      e.preventDefault();
-      // Enhanced command completion
-      const commonCommands = [
-        'npm install', 'npm run dev', 'npm test', 'npm run build', 'npm start',
-        'git status', 'git add .', 'git commit -m ""', 'git push', 'git pull',
-        'ls -la', 'cd ..', 'cd src', 'pwd', 'clear', 'help'
-      ];
-      const matches = commonCommands.filter(cmd => cmd.startsWith(currentCommand));
-      if (matches.length === 1) {
-        setCurrentCommand(matches[0]);
-      } else if (matches.length > 1) {
-        addLine('info', `Available completions: ${matches.join(', ')}`);
-      }
-    } else if (e.key === 'Escape') {
-      setCurrentCommand('');
+        break;
+
+      case 127: // Backspace
+        if (currentCommand.length > 0) {
+          setCurrentCommand(prev => prev.slice(0, -1));
+          terminal.write('\\b \\b');
+        }
+        break;
+
+      case 9: // Tab
+        handleTabCompletion(terminal);
+        break;
+
+      case 27: // Escape sequences (arrow keys)
+        // Handle arrow keys for command history
+        break;
+
+      default:
+        if (code >= 32 && code <= 126) { // Printable characters
+          setCurrentCommand(prev => prev + data);
+          terminal.write(data);
+        }
+        break;
     }
   };
 
-  const handleClear = () => {
-    setTerminalLines([]);
+  const handleTabCompletion = (terminal: XTerm) => {
+    const matches = commonCommands.filter(cmd => 
+      cmd.toLowerCase().startsWith(currentCommand.toLowerCase())
+    );
+
+    if (matches.length === 1) {
+      const completion = matches[0].substring(currentCommand.length);
+      setCurrentCommand(matches[0]);
+      terminal.write(completion);
+    } else if (matches.length > 1) {
+      terminal.writeln('');
+      terminal.writeln(matches.join('  '));
+      writePrompt(terminal);
+      terminal.write(currentCommand);
+    }
+  };
+
+  const executeCommand = async (command: string, terminal: XTerm) => {
+    setIsExecuting(true);
+    terminal.writeln('');
+
+    try {
+      // Handle built-in commands
+      if (command === 'clear') {
+        terminal.clear();
+        writePrompt(terminal);
+        setCurrentCommand('');
+        setIsExecuting(false);
+        return;
+      }
+
+      if (command === 'exit') {
+        terminal.writeln('\\x1b[33mTerminal session ended\\x1b[0m');
+        setIsExecuting(false);
+        return;
+      }
+
+      if (command.startsWith('cd ')) {
+        const newDir = command.substring(3).trim();
+        setCurrentDirectory(newDir || '~');
+        terminal.writeln(`\\x1b[90mChanged directory to: ${newDir || '~'}\\x1b[0m`);
+        writePrompt(terminal);
+        setCurrentCommand('');
+        setIsExecuting(false);
+        return;
+      }
+
+      // Show execution indicator
+      terminal.writeln(`\\x1b[90m[Executing: ${command}]\\x1b[0m`);
+
+      // Execute command via IPC
+      const result = await window.electronAPI?.executeCommand(command, currentDirectory);
+      
+      if (result) {
+        if (result.success) {
+          if (result.output) {
+            // Split output into lines and write each line
+            const lines = result.output.split('\\n');
+            lines.forEach(line => {
+              if (line.trim()) {
+                terminal.writeln(line);
+              }
+            });
+          }
+          if (result.exitCode !== 0) {
+            terminal.writeln(`\\x1b[33mProcess exited with code: ${result.exitCode}\\x1b[0m`);
+          }
+        } else {
+          terminal.writeln(`\\x1b[31mError: ${result.error || 'Command execution failed'}\\x1b[0m`);
+        }
+      } else {
+        terminal.writeln('\\x1b[31mError: Failed to execute command (IPC not available)\\x1b[0m');
+      }
+
+      // Add to history
+      const historyEntry: CommandHistory = {
+        command,
+        output: result?.output || '',
+        timestamp: new Date(),
+        exitCode: result?.exitCode || -1
+      };
+      setCommandHistory(prev => [...prev, historyEntry]);
+
+    } catch (error) {
+      terminal.writeln(`\\x1b[31mError: ${error instanceof Error ? error.message : 'Unknown error'}\\x1b[0m`);
+    }
+
+    terminal.writeln('');
+    writePrompt(terminal);
+    setCurrentCommand('');
+    setIsExecuting(false);
   };
 
   const handleQuickCommand = (command: string) => {
+    if (!xtermRef.current || isExecuting) return;
+    
     setCurrentCommand(command);
-    executeCommand(command);
-    setCurrentCommand('');
+    xtermRef.current.write(command);
+    executeCommand(command, xtermRef.current);
   };
-
-  const getCurrentDirectoryName = () => {
-    return currentDirectory.split('/').pop() || 'root';
-  };
-
-  // Enhanced quick command buttons
-  const quickCommands = [
-    { label: 'npm install', command: 'npm install', icon: '📦' },
-    { label: 'npm run dev', command: 'npm run dev', icon: '🚀' },
-    { label: 'npm test', command: 'npm test', icon: '🧪' },
-    { label: 'git status', command: 'git status', icon: '📊' },
-    { label: 'ls -la', command: 'ls -la', icon: '📁' }
-  ];
 
   return (
-    <TerminalContainer>
-      <TerminalHeader>
-        <TerminalTitle>
-          <StatusIndicator $connected={isConnected} />
-          Terminal (Fixed - No PTY Issues!)
-        </TerminalTitle>
-        <TerminalActions>
-          {quickCommands.map((cmd, index) => (
-            <TerminalButton
-              key={index}
-              onClick={() => handleQuickCommand(cmd.command)}
-              title={`Run: ${cmd.command}`}
-            >
-              {cmd.icon} {cmd.label}
-            </TerminalButton>
-          ))}
-          <TerminalButton onClick={handleClear} title="Clear terminal">
-            🗑️ Clear
-          </TerminalButton>
-        </TerminalActions>
-      </TerminalHeader>
+    <div className={`terminal-container ${className}`}>
+      <div className="terminal-header">
+        <div className="terminal-status">
+          <span className={`status-indicator ${isConnected ? 'connected' : 'disconnected'}`}>
+            {isConnected ? '✓ Terminal Ready' : '⚠ Disconnected'}
+          </span>
+          {isExecuting && <span className="executing-indicator">⚡ Executing...</span>}
+        </div>
+        <div className="quick-commands">
+          <button 
+            onClick={() => handleQuickCommand('npm --version')}
+            disabled={isExecuting}
+            className="quick-cmd-btn"
+          >
+            npm --version
+          </button>
+          <button 
+            onClick={() => handleQuickCommand('git status')}
+            disabled={isExecuting}
+            className="quick-cmd-btn"
+          >
+            git status
+          </button>
+          <button 
+            onClick={() => handleQuickCommand('ls -la')}
+            disabled={isExecuting}
+            className="quick-cmd-btn"
+          >
+            ls -la
+          </button>
+          <button 
+            onClick={() => handleQuickCommand('clear')}
+            disabled={isExecuting}
+            className="quick-cmd-btn"
+          >
+            clear
+          </button>
+        </div>
+      </div>
+      <div 
+        ref={terminalRef} 
+        className="terminal-content"
+        style={{ 
+          height: 'calc(100% - 60px)',
+          width: '100%'
+        }}
+      />
       
-      <TerminalOutput ref={outputRef}>
-        {terminalLines.map(line => (
-          <OutputLine key={line.id} type={line.type}>
-            {line.content}
-          </OutputLine>
-        ))}
-      </TerminalOutput>
-      
-      <TerminalInput>
-        <CurrentDirectory>{getCurrentDirectoryName()}</CurrentDirectory>
-        <InputPrompt>$</InputPrompt>
-        <form onSubmit={handleCommandSubmit} style={{ display: 'flex', flex: 1 }}>
-          <InputField
-            type="text"
-            value={currentCommand}
-            onChange={(e) => setCurrentCommand(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Enter command... (try 'npm --version' or 'help')"
-            autoFocus
-          />
-        </form>
-      </TerminalInput>
-    </TerminalContainer>
+      <style jsx>{`
+        .terminal-container {
+          height: 100%;
+          background: #1a1a1a;
+          border-radius: 8px;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        }
+        
+        .terminal-header {
+          background: #2d2d2d;
+          padding: 8px 12px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid #404040;
+        }
+        
+        .terminal-status {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        
+        .status-indicator {
+          font-size: 12px;
+          font-weight: 500;
+        }
+        
+        .status-indicator.connected {
+          color: #51cf66;
+        }
+        
+        .status-indicator.disconnected {
+          color: #ff6b6b;
+        }
+        
+        .executing-indicator {
+          color: #ffd43b;
+          font-size: 12px;
+          animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
+        
+        .quick-commands {
+          display: flex;
+          gap: 6px;
+        }
+        
+        .quick-cmd-btn {
+          background: #404040;
+          border: 1px solid #555;
+          color: #fff;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-size: 11px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        
+        .quick-cmd-btn:hover:not(:disabled) {
+          background: #505050;
+          border-color: #666;
+        }
+        
+        .quick-cmd-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
+        .terminal-content {
+          flex: 1;
+          padding: 8px;
+        }
+      `}</style>
+    </div>
   );
 };
 
-export default TerminalFixed;
+export default Terminal;
 

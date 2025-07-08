@@ -1,159 +1,155 @@
 /**
- * Terminal IPC Handlers (Fixed - No PTY)
- * Provides terminal functionality using simple command execution
+ * Terminal IPC Handlers (Working Implementation)
+ * Provides command execution without PTY dependencies
  */
 
 import { ipcMain, BrowserWindow } from 'electron';
 import { spawn, exec } from 'child_process';
-import * as os from 'os';
 import * as path from 'path';
+import * as os from 'os';
+import { IpcChannels, CommandResult } from '../../shared/types';
 
 class TerminalManager {
   private mainWindow: BrowserWindow | null = null;
+  private activeCommands = new Map<string, any>();
 
-  setMainWindow(window: BrowserWindow) {
-    this.mainWindow = window;
+  constructor(mainWindow: BrowserWindow) {
+    this.mainWindow = mainWindow;
+    this.setupIpcHandlers();
   }
 
-  // Simple command execution without PTY
-  async executeCommand(command: string, cwd?: string): Promise<any> {
-    return new Promise((resolve) => {
-      const workingDir = cwd || process.env.HOME || process.env.USERPROFILE || os.homedir();
-      
-      // Use exec for simple commands
-      exec(command, { 
-        cwd: workingDir,
-        env: {
-          ...process.env,
-          TERM: 'xterm-256color',
-          COLORTERM: 'truecolor'
-        },
-        timeout: 30000, // 30 second timeout
-        maxBuffer: 1024 * 1024 // 1MB buffer
-      }, (error, stdout, stderr) => {
-        if (error) {
-          resolve({
-            success: false,
-            stdout: stdout || '',
-            stderr: stderr || error.message,
-            exitCode: error.code || -1
-          });
-        } else {
-          resolve({
-            success: true,
-            stdout: stdout || '',
-            stderr: stderr || '',
-            exitCode: 0
-          });
-        }
-      });
+  private setupIpcHandlers() {
+    // Execute command handler
+    ipcMain.handle(IpcChannels.EXECUTE_COMMAND, async (event, command: string, cwd?: string) => {
+      return this.executeCommand(command, cwd);
+    });
+
+    // Legacy execute command handler for compatibility
+    ipcMain.handle('execute-command', async (event, command: string, cwd?: string) => {
+      return this.executeCommand(command, cwd);
     });
   }
 
-  cleanup(): void {
-    // No cleanup needed for simple command execution
+  private async executeCommand(command: string, cwd?: string): Promise<CommandResult> {
+    return new Promise((resolve) => {
+      const workingDir = cwd || process.cwd();
+      const isWindows = os.platform() === 'win32';
+      
+      // Determine shell and command format
+      let shell: string;
+      let shellArgs: string[];
+      
+      if (isWindows) {
+        shell = 'cmd.exe';
+        shellArgs = ['/c', command];
+      } else {
+        shell = '/bin/bash';
+        shellArgs = ['-c', command];
+      }
+
+      const childProcess = spawn(shell, shellArgs, {
+        cwd: workingDir,
+        env: { ...process.env },
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+
+      let output = '';
+      let errorOutput = '';
+
+      // Collect stdout
+      childProcess.stdout?.on('data', (data) => {
+        const chunk = data.toString();
+        output += chunk;
+      });
+
+      // Collect stderr
+      childProcess.stderr?.on('data', (data) => {
+        const chunk = data.toString();
+        errorOutput += chunk;
+      });
+
+      // Handle process completion
+      childProcess.on('close', (code) => {
+        const result: CommandResult = {
+          success: code === 0,
+          output: output.trim(),
+          error: errorOutput.trim() || undefined,
+          exitCode: code || 0
+        };
+
+        resolve(result);
+      });
+
+      // Handle process errors
+      childProcess.on('error', (error) => {
+        const result: CommandResult = {
+          success: false,
+          output: '',
+          error: error.message,
+          exitCode: -1
+        };
+
+        resolve(result);
+      });
+
+      // Set timeout for long-running commands
+      setTimeout(() => {
+        if (!childProcess.killed) {
+          childProcess.kill();
+          resolve({
+            success: false,
+            output: output.trim(),
+            error: 'Command timed out after 30 seconds',
+            exitCode: -1
+          });
+        }
+      }, 30000);
+    });
+  }
+
+  // Quick command execution for common operations
+  async executeQuickCommand(command: string): Promise<CommandResult> {
+    const commonCommands: Record<string, string> = {
+      'npm-version': 'npm --version',
+      'node-version': 'node --version',
+      'git-status': 'git status --porcelain',
+      'list-files': 'ls -la',
+      'current-dir': 'pwd'
+    };
+
+    const actualCommand = commonCommands[command] || command;
+    return this.executeCommand(actualCommand);
+  }
+
+  // Get system information
+  getSystemInfo() {
+    return {
+      platform: os.platform(),
+      arch: os.arch(),
+      nodeVersion: process.version,
+      homeDir: os.homedir(),
+      tmpDir: os.tmpdir(),
+      cwd: process.cwd()
+    };
+  }
+
+  // Cleanup method
+  cleanup() {
+    // Kill any active commands
+    this.activeCommands.forEach((process, id) => {
+      if (process && !process.killed) {
+        process.kill();
+      }
+    });
+    this.activeCommands.clear();
   }
 }
 
-// Global terminal manager instance
-const terminalManager = new TerminalManager();
-
-// IPC Handlers
-export function setupTerminalHandlers(mainWindow: BrowserWindow) {
-  terminalManager.setMainWindow(mainWindow);
-
-  // Execute single command (main handler)
-  ipcMain.handle('execute-command', async (event, command: string, cwd?: string) => {
-    try {
-      console.log(`Executing command: ${command} in ${cwd || 'default directory'}`);
-      const result = await terminalManager.executeCommand(command, cwd);
-      console.log(`Command result:`, { 
-        success: result.success, 
-        exitCode: result.exitCode,
-        stdoutLength: result.stdout?.length || 0,
-        stderrLength: result.stderr?.length || 0
-      });
-      return result;
-    } catch (error) {
-      console.error('Failed to execute command:', error);
-      return {
-        success: false,
-        stdout: '',
-        stderr: error instanceof Error ? error.message : 'Unknown error',
-        exitCode: -1
-      };
-    }
-  });
-
-  // Legacy PTY handlers (for compatibility) - all redirect to simple execution
-  ipcMain.handle('terminal-create', async (event, sessionId: string, cwd?: string) => {
-    console.log(`Terminal create request (legacy): ${sessionId}`);
-    return {
-      success: true,
-      sessionId: sessionId,
-      cwd: cwd || process.env.HOME || '/home/ubuntu'
-    };
-  });
-
-  ipcMain.handle('terminal-write', async (event, sessionId: string, data: string) => {
-    console.log(`Terminal write request (legacy): ${sessionId}, data: ${data.substring(0, 50)}...`);
-    // For legacy compatibility, treat write as command execution
-    if (data.endsWith('\r') || data.endsWith('\n')) {
-      const command = data.replace(/[\r\n]+$/, '');
-      if (command.trim()) {
-        const result = await terminalManager.executeCommand(command);
-        // Send result back to renderer
-        if (terminalManager.mainWindow) {
-          terminalManager.mainWindow.webContents.send('terminal-data', sessionId, 
-            `${result.stdout}${result.stderr}`);
-          if (!result.success) {
-            terminalManager.mainWindow.webContents.send('terminal-exit', sessionId, result.exitCode);
-          }
-        }
-      }
-    }
-    return { success: true };
-  });
-
-  ipcMain.handle('terminal-resize', async (event, sessionId: string, cols: number, rows: number) => {
-    console.log(`Terminal resize request (legacy): ${sessionId}`);
-    return { success: true };
-  });
-
-  ipcMain.handle('terminal-kill', async (event, sessionId: string) => {
-    console.log(`Terminal kill request (legacy): ${sessionId}`);
-    return { success: true };
-  });
-
-  ipcMain.handle('terminal-get-cwd', async (event, sessionId: string) => {
-    return {
-      success: true,
-      cwd: process.env.HOME || '/home/ubuntu'
-    };
-  });
-
-  ipcMain.handle('terminal-list-sessions', async () => {
-    return {
-      success: true,
-      sessions: ['main-terminal']
-    };
-  });
-
-  // Cleanup on app quit
-  process.on('exit', () => {
-    terminalManager.cleanup();
-  });
-
-  process.on('SIGINT', () => {
-    terminalManager.cleanup();
-    process.exit(0);
-  });
-
-  process.on('SIGTERM', () => {
-    terminalManager.cleanup();
-    process.exit(0);
-  });
+// Export the setup function
+export function setupTerminalHandlers(mainWindow: BrowserWindow): TerminalManager {
+  return new TerminalManager(mainWindow);
 }
 
-export { terminalManager };
+// Export for testing
+export { TerminalManager };
 

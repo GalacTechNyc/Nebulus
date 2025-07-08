@@ -126,3 +126,68 @@ export interface FileSystemEvent {
   newPath?: string;
   content?: string;
 }
+
+// IPC Channel definitions
+export enum IpcChannels {
+  // File operations
+  READ_FILE = 'read-file',
+  WRITE_FILE = 'write-file',
+  CREATE_FILE = 'create-file',
+  DELETE_FILE = 'delete-file',
+  LIST_DIRECTORY = 'list-directory',
+  
+  // Terminal operations
+  TERMINAL_CREATE = 'terminal-create',
+  TERMINAL_WRITE = 'terminal-write',
+  TERMINAL_RESIZE = 'terminal-resize',
+  TERMINAL_KILL = 'terminal-kill',
+  TERMINAL_DATA = 'terminal-data',
+  TERMINAL_DESTROY = 'terminal-destroy',
+  EXECUTE_COMMAND = 'execute-command',
+  
+  // Project operations
+  PROJECT_OPEN = 'project-open',
+  PROJECT_GET_STRUCTURE = 'project-get-structure',
+  
+  // AI operations
+  AI_CHAT = 'ai-chat',
+  AI_GENERATE_CODE = 'ai-generate-code',
+  AI_FIX_ERROR = 'ai-fix-error',
+  AI_EXPLAIN_CODE = 'ai-explain-code',
+  
+  // Vision operations
+  VISION_ANALYZE = 'vision-analyze',
+  VISION_GENERATE = 'vision-generate',
+  VISION_PROCESS = 'vision-process',
+  
+  // Deployment operations
+  DEPLOY_PROJECT = 'deploy-project',
+  GET_DEPLOYMENT_STATUS = 'get-deployment-status',
+  
+  // System operations
+  LOG_ERROR = 'log-error',
+  GET_SYSTEM_INFO = 'get-system-info',
+  OPEN_EXTERNAL = 'open-external'
+}
+
+// Terminal specific types
+export interface TerminalSession {
+  id: string;
+  pid: number;
+  cwd: string;
+  title: string;
+  isActive: boolean;
+}
+
+export interface TerminalData {
+  sessionId: string;
+  data: string;
+}
+
+export interface CommandResult {
+  success: boolean;
+  output: string;
+  error?: string;
+  exitCode: number;
+}
+

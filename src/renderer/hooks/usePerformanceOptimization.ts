@@ -67,9 +67,7 @@ export function useExpensiveComputation<T>(
       
       return result;
     } catch (error) {
-      logger.error('Expensive computation failed', 'useExpensiveComputation', error, {
-        cacheKey,
-      });
+      logger.error('Expensive computation failed', 'useExpensiveComputation', { error, computation: computation.toString(), dependencies });
       throw error;
     }
   }, dependencies);

@@ -201,7 +201,7 @@ export const SecureWebview: React.FC<SecureWebviewProps> = ({
     
     // Error handling
     webview.addEventListener('did-fail-load', (event: any) => {
-      logger.error('Webview failed to load', 'SecureWebview', undefined, {
+      logger.error('Webview failed to load', 'SecureWebview', {
         errorCode: event.errorCode,
         errorDescription: event.errorDescription,
         url: event.validatedURL,
@@ -300,4 +300,4 @@ export const SecureWebview: React.FC<SecureWebviewProps> = ({
   );
 };
 
-export default SecureWebView;
+export default SecureWebview;

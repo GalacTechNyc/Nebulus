@@ -34,7 +34,7 @@ export const AIVisionPanel: React.FC<AIVisionPanelProps> = ({
   useEffect(() => {
     // Initialize vision service
     visionService.initialize().catch(error => {
-      logger.error('Failed to initialize vision service', 'AIVisionPanel', error);
+      logger.error('Failed to initialize vision service', 'AIVisionPanel', { error });
       setError('Failed to initialize AI Vision service');
     });
   }, []);
@@ -60,7 +60,7 @@ export const AIVisionPanel: React.FC<AIVisionPanelProps> = ({
       // Automatically start analysis
       await analyzeImage(screenshotData);
     } catch (error) {
-      logger.error('Failed to capture screenshot', 'AIVisionPanel', error);
+      logger.error('Failed to capture screenshot', 'AIVisionPanel', { error });
       setError(`Failed to capture screenshot: ${error.message}`);
     } finally {
       setIsAnalyzing(false);
@@ -87,7 +87,7 @@ export const AIVisionPanel: React.FC<AIVisionPanelProps> = ({
         designSuggestions: analysis.designSuggestions.length,
       });
     } catch (error) {
-      logger.error('Failed to analyze image', 'AIVisionPanel', error);
+      logger.error('Failed to analyze image', 'AIVisionPanel', { error });
       setError(`Analysis failed: ${error.message}`);
     } finally {
       setIsAnalyzing(false);
@@ -115,7 +115,7 @@ export const AIVisionPanel: React.FC<AIVisionPanelProps> = ({
       };
       reader.readAsDataURL(file);
     } catch (error) {
-      logger.error('Failed to process uploaded file', 'AIVisionPanel', error);
+      logger.error('Failed to process uploaded file', 'AIVisionPanel', { error });
       setError(`Failed to process file: ${error.message}`);
     }
   }, [analyzeImage]);
@@ -138,7 +138,7 @@ export const AIVisionPanel: React.FC<AIVisionPanelProps> = ({
         onCodeGenerated?.(codeGeneration[0].code, selectedFramework);
       }
     } catch (error) {
-      logger.error('Failed to generate code', 'AIVisionPanel', error);
+      logger.error('Failed to generate code', 'AIVisionPanel', { error });
       setError(`Code generation failed: ${error.message}`);
     }
   }, [currentAnalysis, selectedFramework, onCodeGenerated]);

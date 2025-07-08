@@ -43,7 +43,7 @@ const Terminal: React.FC<TerminalProps> = ({ className = '' }) => {
         background: '#1a1a1a',
         foreground: '#ffffff',
         cursor: '#ffffff',
-        selection: '#ffffff30',
+        selectionBackground: '#ffffff30',
         black: '#000000',
         red: '#ff6b6b',
         green: '#51cf66',
@@ -215,9 +215,9 @@ const Terminal: React.FC<TerminalProps> = ({ className = '' }) => {
       
       if (result) {
         if (result.success) {
-          if (result.output) {
+          if (result.stdout) {
             // Split output into lines and write each line
-            const lines = result.output.split('\\n');
+            const lines = result.stdout.split('\\n');
             lines.forEach(line => {
               if (line.trim()) {
                 terminal.writeln(line);
@@ -228,7 +228,7 @@ const Terminal: React.FC<TerminalProps> = ({ className = '' }) => {
             terminal.writeln(`\\x1b[33mProcess exited with code: ${result.exitCode}\\x1b[0m`);
           }
         } else {
-          terminal.writeln(`\\x1b[31mError: ${result.error || 'Command execution failed'}\\x1b[0m`);
+          terminal.writeln(`\\x1b[31mError: ${result.stderr || 'Command execution failed'}\\x1b[0m`);
         }
       } else {
         terminal.writeln('\\x1b[31mError: Failed to execute command (IPC not available)\\x1b[0m');
@@ -237,7 +237,7 @@ const Terminal: React.FC<TerminalProps> = ({ className = '' }) => {
       // Add to history
       const historyEntry: CommandHistory = {
         command,
-        output: result?.output || '',
+        output: result?.stdout || '',
         timestamp: new Date(),
         exitCode: result?.exitCode || -1
       };

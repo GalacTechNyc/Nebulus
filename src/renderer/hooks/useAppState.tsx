@@ -298,8 +298,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
           splitGroups: Math.max(state.terminal.splitGroups, newGroup)
         }
       };
+    }
       
-    case 'UNSPLIT_TERMINALS':
+    case 'UNSPLIT_TERMINALS': {
       // Merge all terminals back to group 1
       return {
         ...state,
@@ -309,12 +310,14 @@ function appReducer(state: AppState, action: AppAction): AppState {
           splitGroups: 1
         }
       };
+    }
       
-    case 'UPDATE_SETTINGS':
+    case 'UPDATE_SETTINGS': {
       return {
         ...state,
         settings: { ...state.settings, ...action.payload }
       };
+    }
       
     default:
       return state;

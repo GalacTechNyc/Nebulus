@@ -156,7 +156,7 @@ export class VisionHandlers {
 
       return dataUrl;
     } catch (error) {
-      logger.error('Failed to capture screenshot', 'VisionHandlers', error, data);
+      logger.error('Failed to capture screenshot', 'VisionHandlers', { error, data });
       throw error;
     }
   }
@@ -193,7 +193,7 @@ export class VisionHandlers {
 
       return result;
     } catch (error) {
-      logger.error('AI vision analysis failed', 'VisionHandlers', error, data);
+      logger.error('AI vision analysis failed', 'VisionHandlers', { error, data });
       throw error;
     }
   }
@@ -229,7 +229,7 @@ export class VisionHandlers {
 
       return result;
     } catch (error) {
-      logger.error('Code generation failed', 'VisionHandlers', error, data);
+      logger.error('Code generation failed', 'VisionHandlers', { error, data });
       throw error;
     }
   }
@@ -258,7 +258,7 @@ export class VisionHandlers {
       logger.info('Accessibility analysis completed', 'VisionHandlers');
       return result;
     } catch (error) {
-      logger.error('Accessibility analysis failed', 'VisionHandlers', error, data);
+      logger.error('Accessibility analysis failed', 'VisionHandlers', { error, data });
       throw error;
     }
   }
@@ -288,7 +288,7 @@ export class VisionHandlers {
       logger.info('Design suggestions completed', 'VisionHandlers');
       return result;
     } catch (error) {
-      logger.error('Design suggestions failed', 'VisionHandlers', error, data);
+      logger.error('Design suggestions failed', 'VisionHandlers', { error, data });
       throw error;
     }
   }
@@ -321,7 +321,7 @@ export class VisionHandlers {
       logger.info('Image comparison completed', 'VisionHandlers');
       return result;
     } catch (error) {
-      logger.error('Image comparison failed', 'VisionHandlers', error, data);
+      logger.error('Image comparison failed', 'VisionHandlers', { error, data });
       throw error;
     }
   }
@@ -348,7 +348,7 @@ export class VisionHandlers {
       logger.info('Text extraction completed', 'VisionHandlers');
       return result;
     } catch (error) {
-      logger.error('Text extraction failed', 'VisionHandlers', error, data);
+      logger.error('Text extraction failed', 'VisionHandlers', { error, data });
       throw error;
     }
   }

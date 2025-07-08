@@ -116,7 +116,7 @@ export class VisionService {
       this.isInitialized = true;
       logger.info('AI Vision Service initialized successfully', 'VisionService');
     } catch (error) {
-      logger.error('Failed to initialize AI Vision Service', 'VisionService', error);
+      logger.error('Failed to initialize AI Vision Service', 'VisionService', { error });
       throw error;
     }
   }
@@ -167,7 +167,7 @@ export class VisionService {
 
       return screenshot;
     } catch (error) {
-      logger.error('Failed to capture screenshot', 'VisionService', error, { webviewId, options });
+      logger.error('Failed to capture screenshot', 'VisionService', { error, webviewId, options });
       throw error;
     }
   }
@@ -219,10 +219,7 @@ export class VisionService {
       };
     } catch (error) {
       const processingTime = performance.now() - startTime;
-      logger.error('Vision analysis failed', 'VisionService', error, {
-        analysisType,
-        processingTime: `${processingTime.toFixed(2)}ms`,
-      });
+      logger.error('Vision analysis failed', 'VisionService', { error, analysisType, processingTime: `${processingTime.toFixed(2)}ms` });
       throw error;
     }
   }
@@ -255,7 +252,7 @@ export class VisionService {
 
       return codeGeneration;
     } catch (error) {
-      logger.error('Code generation failed', 'VisionService', error, { framework });
+      logger.error('Code generation failed', 'VisionService', { error, framework });
       throw error;
     }
   }
@@ -286,7 +283,7 @@ export class VisionService {
 
       return accessibility;
     } catch (error) {
-      logger.error('Accessibility analysis failed', 'VisionService', error);
+      logger.error('Accessibility analysis failed', 'VisionService', { error });
       throw error;
     }
   }
@@ -316,7 +313,7 @@ export class VisionService {
 
       return suggestions;
     } catch (error) {
-      logger.error('Design suggestions failed', 'VisionService', error);
+      logger.error('Design suggestions failed', 'VisionService', { error });
       throw error;
     }
   }
@@ -355,7 +352,7 @@ export class VisionService {
 
       return comparison;
     } catch (error) {
-      logger.error('Screenshot comparison failed', 'VisionService', error);
+      logger.error('Screenshot comparison failed', 'VisionService', { error });
       throw error;
     }
   }
@@ -392,7 +389,7 @@ export class VisionService {
 
       return textExtraction;
     } catch (error) {
-      logger.error('Text extraction failed', 'VisionService', error);
+      logger.error('Text extraction failed', 'VisionService', { error });
       throw error;
     }
   }

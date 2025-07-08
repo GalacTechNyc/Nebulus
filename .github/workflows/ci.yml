@@ -9,7 +9,7 @@ on:
     types: [ published ]
 
 env:
-  NODE_VERSION: '20.x'
+  NODE_VERSION: '22.x'
   ELECTRON_CACHE: ${{ github.workspace }}/.cache/electron
   ELECTRON_BUILDER_CACHE: ${{ github.workspace }}/.cache/electron-builder
 
@@ -62,7 +62,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        node-version: ['18.x', '20.x']
+        node-version: ['20.x', '22.x']
     
     steps:
       - name: Checkout code
@@ -89,7 +89,7 @@ jobs:
           CI: true
 
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '20.x'
+        if: matrix.os == 'ubuntu-latest' && matrix.node-version == '22.x'
         uses: codecov/codecov-action@v3
         with:
           file: ./coverage/lcov.info

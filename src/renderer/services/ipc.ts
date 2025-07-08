@@ -88,7 +88,63 @@ class IPCService {
     if (!window.electronAPI) {
       return { success: false, error: 'Electron API not available' };
     }
-    return await window.electronAPI.invoke('terminal:execute', command, cwd);
+    return await window.electronAPI.invoke('execute-command', command, cwd);
+  }
+
+  // PTY Terminal operations
+  async createTerminal(sessionId: string, cwd?: string): Promise<any> {
+    if (!window.electronAPI) {
+      return { success: false, error: 'Electron API not available' };
+    }
+    return await window.electronAPI.invoke('terminal-create', sessionId, cwd);
+  }
+
+  async writeToTerminal(sessionId: string, data: string): Promise<any> {
+    if (!window.electronAPI) {
+      return { success: false, error: 'Electron API not available' };
+    }
+    return await window.electronAPI.invoke('terminal-write', sessionId, data);
+  }
+
+  async resizeTerminal(sessionId: string, cols: number, rows: number): Promise<any> {
+    if (!window.electronAPI) {
+      return { success: false, error: 'Electron API not available' };
+    }
+    return await window.electronAPI.invoke('terminal-resize', sessionId, cols, rows);
+  }
+
+  async killTerminal(sessionId: string): Promise<any> {
+    if (!window.electronAPI) {
+      return { success: false, error: 'Electron API not available' };
+    }
+    return await window.electronAPI.invoke('terminal-kill', sessionId);
+  }
+
+  async getTerminalCwd(sessionId: string): Promise<any> {
+    if (!window.electronAPI) {
+      return { success: false, error: 'Electron API not available' };
+    }
+    return await window.electronAPI.invoke('terminal-get-cwd', sessionId);
+  }
+
+  async listTerminalSessions(): Promise<any> {
+    if (!window.electronAPI) {
+      return { success: false, error: 'Electron API not available' };
+    }
+    return await window.electronAPI.invoke('terminal-list-sessions');
+  }
+
+  // Terminal event listeners
+  onTerminalData(callback: (sessionId: string, data: string) => void): void {
+    if (window.electronAPI) {
+      window.electronAPI.on('terminal-data', callback);
+    }
+  }
+
+  onTerminalExit(callback: (sessionId: string, exitCode: number) => void): void {
+    if (window.electronAPI) {
+      window.electronAPI.on('terminal-exit', callback);
+    }
   }
 
   // AI operations

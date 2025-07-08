@@ -136,6 +136,38 @@ const Editor: React.FC = () => {
   const [isEditorReady, setIsEditorReady] = useState(false);
   const isUpdatingContentRef = useRef(false);
 
+  // Helper function to get language from file extension
+  const getLanguageFromExtension = (fileName: string): string => {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    const languageMap: { [key: string]: string } = {
+      'js': 'javascript',
+      'jsx': 'javascript',
+      'ts': 'typescript',
+      'tsx': 'typescript',
+      'html': 'html',
+      'css': 'css',
+      'scss': 'scss',
+      'sass': 'sass',
+      'json': 'json',
+      'md': 'markdown',
+      'py': 'python',
+      'java': 'java',
+      'cpp': 'cpp',
+      'c': 'c',
+      'php': 'php',
+      'rb': 'ruby',
+      'go': 'go',
+      'rs': 'rust',
+      'xml': 'xml',
+      'yaml': 'yaml',
+      'yml': 'yaml',
+      'sh': 'shell',
+      'bash': 'shell',
+      'sql': 'sql'
+    };
+    return languageMap[extension || ''] || 'plaintext';
+  };
+
   // Initialize Monaco Editor
   useEffect(() => {
     let contentChangeListener: any = null;
@@ -181,7 +213,7 @@ const Editor: React.FC = () => {
 
       // Create editor instance
       monacoRef.current = monaco.editor.create(editorRef.current, {
-        value: currentFile ? openFiles.find(f => f.id === currentFile)?.content || '' : '',
+        value: '',
         language: 'typescript',
         theme: 'galactus-dark',
         automaticLayout: true,
@@ -199,7 +231,7 @@ const Editor: React.FC = () => {
         formatOnType: true,
         suggestOnTriggerCharacters: true,
         acceptSuggestionOnEnter: 'on',
-        readOnly: false, // Explicitly make editor editable
+        readOnly: false,
         quickSuggestions: {
           other: true,
           comments: false,
@@ -230,7 +262,7 @@ const Editor: React.FC = () => {
                 console.error('Auto-save failed:', error);
               }
             }
-          }, 2000); // Auto-save after 2 seconds of no changes
+          }, 2000);
         }
       });
 
@@ -348,88 +380,56 @@ const Editor: React.FC = () => {
     }
   }, [monacoRef.current]);
 
-  // Update editor content when current file changes
+  // Update editor content when current file changes - FIXED VERSION
   useEffect(() => {
     console.log('=== Editor Content Update Effect ===');
     console.log('currentFile:', currentFile);
     console.log('isEditorReady:', isEditorReady);
     console.log('openFiles count:', openFiles.length);
     
-    if (monacoRef.current && isEditorReady && currentFile) {
-      const file = openFiles.find(f => f.id === currentFile);
-      console.log('Found file in openFiles:', file ? `${file.name} (${file.content?.length || 0} chars)` : 'none');
-      
-      if (file) {
-        // Check if file has empty content but should have content - reload from disk
-        if (!file.content || file.content.length === 0) {
-          console.log('File has empty content, attempting to reload from disk...');
-          const reloadFile = async () => {
-            try {
-              const result = await ipcService.readFile(file.path);
-              if (result.success && result.content) {
-                console.log('Reloaded file content:', result.content.length, 'characters');
-                // Update the file content in state
-                dispatch({
-                  type: 'UPDATE_FILE_CONTENT',
-                  payload: { id: file.id, content: result.content }
-                });
-                // Set content in editor immediately
-                const model = monacoRef.current?.getModel();
-                if (model) {
-                  isUpdatingContentRef.current = true;
-                  model.setValue(result.content);
-                  isUpdatingContentRef.current = false;
-                }
-              } else {
-                console.error('Failed to reload file:', result.error);
-              }
-            } catch (error) {
-              console.error('Error reloading file:', error);
-            }
-          };
-          reloadFile();
-          return;
-        }
+    if (monacoRef.current && isEditorReady) {
+      if (currentFile) {
+        const file = openFiles.find(f => f.id === currentFile);
+        console.log('Found file in openFiles:', file ? `${file.name} (${file.content?.length || 0} chars)` : 'none');
         
-        const model = monacoRef.current.getModel();
-        if (model) {
-          console.log('Setting editor content for:', file.name, 'Content length:', file.content.length);
-          isUpdatingContentRef.current = true;
-          model.setValue(file.content || '');
-          isUpdatingContentRef.current = false;
-          
-          // Set language based on file extension
-          const extension = file.name.split('.').pop();
-          const languageMap: { [key: string]: string } = {
-            'js': 'javascript',
-            'jsx': 'javascript',
-            'ts': 'typescript',
-            'tsx': 'typescript',
-            'html': 'html',
-            'css': 'css',
-            'scss': 'scss',
-            'json': 'json',
-            'md': 'markdown',
-            'py': 'python'
-          };
-          
-          const language = languageMap[extension || ''] || 'plaintext';
-          monaco.editor.setModelLanguage(model, language);
-          console.log('Set language to:', language);
-          
-          // Force focus and ensure editor is editable
-          setTimeout(() => {
-            if (monacoRef.current) {
-              monacoRef.current.focus();
-              monacoRef.current.updateOptions({ readOnly: false });
-              console.log('Editor focused and made editable for file:', file.name);
-            }
-          }, 100);
+        if (file) {
+          const model = monacoRef.current.getModel();
+          if (model) {
+            // Always set the content from the file object
+            const content = file.content || '';
+            console.log('Setting editor content for:', file.name, 'Content length:', content.length);
+            
+            isUpdatingContentRef.current = true;
+            model.setValue(content);
+            isUpdatingContentRef.current = false;
+            
+            // Set language based on file extension or language property
+            const language = file.language || getLanguageFromExtension(file.name);
+            monaco.editor.setModelLanguage(model, language);
+            console.log('Set language to:', language);
+            
+            // Force focus and ensure editor is editable
+            setTimeout(() => {
+              if (monacoRef.current) {
+                monacoRef.current.focus();
+                monacoRef.current.updateOptions({ readOnly: false });
+                console.log('Editor focused and made editable for file:', file.name);
+              }
+            }, 100);
+          } else {
+            console.error('Monaco model not found!');
+          }
         } else {
-          console.error('Monaco model not found!');
+          console.log('File not found in openFiles, clearing editor');
+          const model = monacoRef.current.getModel();
+          if (model) {
+            isUpdatingContentRef.current = true;
+            model.setValue('');
+            isUpdatingContentRef.current = false;
+          }
         }
       } else {
-        console.log('No file found, clearing editor');
+        console.log('No current file, clearing editor');
         const model = monacoRef.current.getModel();
         if (model) {
           isUpdatingContentRef.current = true;
@@ -438,7 +438,7 @@ const Editor: React.FC = () => {
         }
       }
     } else {
-      console.log('Editor not ready, monaco not available, or no current file');
+      console.log('Editor not ready or monaco not available');
     }
     console.log('=== End Editor Content Update Effect ===');
   }, [currentFile, openFiles, isEditorReady, dispatch]);
@@ -493,7 +493,6 @@ const Editor: React.FC = () => {
       if (result.success) {
         if (result.stdout) {
           console.log('Python output:', result.stdout);
-          // Set global terminal content for AI to see
           (window as any).__galactusTerminalContent = (window as any).__galactusTerminalContent || '';
           (window as any).__galactusTerminalContent += `$ python3 ${file.name}\n${result.stdout}\n`;
           alert(`Python executed successfully!\nOutput: ${result.stdout.substring(0, 200)}${result.stdout.length > 200 ? '...' : ''}`);
@@ -626,3 +625,4 @@ const Editor: React.FC = () => {
 };
 
 export default Editor;
+

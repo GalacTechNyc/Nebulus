@@ -4,41 +4,27 @@ import { useAppState } from '../../hooks/useAppState';
 import { ipcService } from '../../services/ipc';
 
 const ExplorerContainer = styled.div`
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  overflow-y: auto;
+  background-color: ${props => props.theme.colors.background};
 `;
 
-const WorkspaceHeader = styled.div`
-  padding: ${props => props.theme.spacing.sm};
-  border-bottom: 1px solid ${props => props.theme.colors.border};
-  background-color: ${props => props.theme.colors.surface};
-`;
-
-const WorkspaceTitle = styled.div`
-  font-weight: 600;
-  font-size: 11px;
-  text-transform: uppercase;
-  color: ${props => props.theme.colors.textSecondary};
-  margin-bottom: 4px;
-`;
-
-const ProjectName = styled.div`
+const ExplorerHeader = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 13px;
+  padding: ${props => props.theme.spacing.sm};
+  background-color: ${props => props.theme.colors.surface};
+  border-bottom: 1px solid ${props => props.theme.colors.border};
+  font-size: ${props => props.theme.fontSizes.small};
+  font-weight: 600;
   color: ${props => props.theme.colors.text};
-  cursor: pointer;
-  padding: 2px 0;
-  
-  &:hover {
-    background-color: ${props => props.theme.colors.surfaceHover};
-  }
 `;
 
-const ProjectActions = styled.div`
+const ExplorerActions = styled.div`
   display: flex;
-  gap: 4px;
+  gap: ${props => props.theme.spacing.xs};
 `;
 
 const ActionButton = styled.button`
@@ -48,11 +34,10 @@ const ActionButton = styled.button`
   background: none;
   color: ${props => props.theme.colors.textSecondary};
   cursor: pointer;
-  border-radius: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  border-radius: 2px;
   
   &:hover {
     background-color: ${props => props.theme.colors.surfaceHover};
@@ -60,64 +45,41 @@ const ActionButton = styled.button`
   }
 `;
 
-const ToolbarContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: ${props => props.theme.spacing.sm};
-  border-bottom: 1px solid ${props => props.theme.colors.border};
-`;
-
-const ToolbarButton = styled.button`
-  width: 32px;
-  height: 32px;
-  border: 1px solid #666;
-  border-radius: 4px;
-  background-color: #333;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 16px;
-  padding: 4px;
-  margin: 2px;
-  outline: none;
-  
-  &:hover {
-    background-color: #555;
-    border-color: #888;
-  }
-  
-  &:active {
-    background-color: #222;
-    transform: scale(0.95);
-  }
-`;
-
 const FileTree = styled.div`
-  padding: ${props => props.theme.spacing.sm};
+  flex: 1;
+  overflow-y: auto;
+  padding: ${props => props.theme.spacing.xs};
 `;
 
-const FileItem = styled.div<{ $level: number; $isDirectory: boolean; $selected?: boolean }>`
+const FileItem = styled.div<{ $level: number; $isDirectory: boolean; $isSelected: boolean }>`
   display: flex;
   align-items: center;
-  padding: 2px 4px;
-  padding-left: ${props => props.$level * 16 + 4}px;
+  padding: 2px ${props => props.theme.spacing.xs};
+  padding-left: ${props => props.$level * 16 + 8}px;
   cursor: pointer;
   font-size: ${props => props.theme.fontSizes.small};
   color: ${props => props.theme.colors.text};
-  border-radius: ${props => props.theme.borderRadius.small};
-  background-color: ${props => props.$selected ? props.theme.colors.primary + '40' : 'transparent'};
+  user-select: none;
+  border-radius: 2px;
+  margin: 1px 0;
+  
+  ${props => props.$isSelected && `
+    background-color: ${props.theme.colors.primary}20;
+    color: ${props.theme.colors.primary};
+  `}
   
   &:hover {
-    background-color: ${props => props.$selected ? props.theme.colors.primary + '40' : props.theme.colors.surfaceHover};
+    background-color: ${props => props.theme.colors.surfaceHover};
   }
 `;
 
 const FileIcon = styled.span`
   margin-right: ${props => props.theme.spacing.xs};
   font-size: 12px;
+  width: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const FileName = styled.span`
@@ -127,507 +89,373 @@ const FileName = styled.span`
   text-overflow: ellipsis;
 `;
 
+const ExpandIcon = styled.span<{ $expanded: boolean }>`
+  margin-right: 4px;
+  font-size: 10px;
+  transition: transform 0.2s;
+  transform: ${props => props.$expanded ? 'rotate(90deg)' : 'rotate(0deg)'};
+  color: ${props => props.theme.colors.textSecondary};
+`;
+
 const EmptyState = styled.div`
-  padding: ${props => props.theme.spacing.lg};
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
   color: ${props => props.theme.colors.textSecondary};
   font-size: ${props => props.theme.fontSizes.small};
+  gap: ${props => props.theme.spacing.sm};
 `;
 
 interface FileNode {
+  id: string;
   name: string;
   path: string;
   isDirectory: boolean;
   children?: FileNode[];
   expanded?: boolean;
+  parent?: string;
 }
 
 const FileExplorer: React.FC = () => {
-  const { dispatch } = useAppState();
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
-  
-  // Workspace management
-  const [currentWorkspace, setCurrentWorkspace] = useState({
-    name: 'Nebulus',
-    path: '/Users/stephonbridges/Nebulus'
-  });
-  const [recentProjects, setRecentProjects] = useState<Array<{name: string, path: string}>>([]);
-  
-  // Real file tree from project directory
+  const { state, dispatch } = useAppState();
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // Load real files from project directory
+  // Load initial directory
   useEffect(() => {
-    const loadProjectFiles = async () => {
-      try {
-        setIsLoading(true);
-        const result = await ipcService.readDirectory(currentWorkspace.path);
-        if (result.success && result.files) {
-          // Filter out node_modules, .git, dist, and other irrelevant directories
-          const filteredFiles = result.files.filter(file => 
-            !['node_modules', '.git', 'dist', '.DS_Store', '.env'].includes(file.name) &&
-            !file.name.startsWith('.')
-          );
+    loadDirectory('/home/ubuntu/Nebulus');
+  }, []);
 
-          const fileNodes: FileNode[] = filteredFiles.map(file => ({
+  const loadDirectory = async (dirPath: string, parentNode?: FileNode) => {
+    setLoading(true);
+    try {
+      const result = await ipcService.readDirectory(dirPath);
+      if (result.success && result.files) {
+        const nodes: FileNode[] = result.files
+          .sort((a, b) => {
+            // Directories first, then files
+            if (a.isDirectory && !b.isDirectory) return -1;
+            if (!a.isDirectory && b.isDirectory) return 1;
+            return a.name.localeCompare(b.name);
+          })
+          .map(file => ({
+            id: file.path,
             name: file.name,
             path: file.path,
             isDirectory: file.isDirectory,
-            children: file.isDirectory ? [] : undefined
+            children: file.isDirectory ? [] : undefined,
+            expanded: false,
+            parent: parentNode?.id
           }));
 
-          setFileTree(fileNodes);
+        if (parentNode) {
+          // Update specific node's children
+          setFileTree(prev => updateNodeChildren(prev, parentNode.id, nodes));
+        } else {
+          // Set root nodes
+          setFileTree(nodes);
         }
-      } catch (error) {
-        console.error('Error loading project files:', error);
-        // Fallback to empty tree
-        setFileTree([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadProjectFiles();
-  }, [currentWorkspace.path]);
-
-  const getFileIcon = (fileName: string, isDirectory: boolean) => {
-    if (isDirectory) {
-      return expandedDirs.has(fileName) ? '📂' : '📁';
-    }
-    
-    const extension = fileName.split('.').pop()?.toLowerCase();
-    const iconMap: { [key: string]: string } = {
-      'tsx': '🔷',
-      'ts': '🔵',
-      'jsx': '🔷',
-      'js': '🟨',
-      'html': '🟧',
-      'css': '🎨',
-      'json': '🟫',
-      'md': '📝',
-      'ico': '🖼️'
-    };
-    
-    return iconMap[extension || ''] || '📄';
-  };
-
-  const handleFileClick = async (file: FileNode) => {
-    console.log('=== File Click Debug ===');
-    console.log('File clicked:', file.name);
-    console.log('File path:', file.path);
-    console.log('Is directory:', file.isDirectory);
-    
-    if (file.isDirectory) {
-      const newExpanded = new Set(expandedDirs);
-      if (newExpanded.has(file.path)) {
-        newExpanded.delete(file.path);
       } else {
-        newExpanded.add(file.path);
+        console.error('Failed to load directory:', result.error);
       }
-      setExpandedDirs(newExpanded);
-      console.log('Directory toggled:', file.name);
-    } else {
-      setSelectedFile(file.path);
-      console.log('Selected file set to:', file.path);
-      
-      try {
-        console.log('Attempting to read file:', file.path);
-        // Read actual file content
-        const result = await ipcService.readFile(file.path);
-        console.log('File read result:', result);
-        
-        if (!result.success) {
-          console.error('File read failed:', result.error);
-          alert(`Failed to read file ${file.name}: ${result.error}`);
-          return;
-        }
-        
-        const fileContent = result.content || '';
-        console.log('File content length:', fileContent.length);
-        console.log('File content preview:', fileContent.substring(0, 100) + '...');
-        
-        // Add file to open files and set as current
-        const realFile = {
-          id: file.path,
-          name: file.name,
-          path: file.path,
-          content: fileContent,
-          language: getLanguageFromExtension(file.name),
-          modified: false,
-          lastModified: new Date()
-        };
-        
-        console.log('Dispatching ADD_OPEN_FILE with:', realFile.name);
-        dispatch({ type: 'ADD_OPEN_FILE', payload: realFile });
-        
-        console.log('Dispatching SET_CURRENT_FILE with:', file.path);
-        dispatch({ type: 'SET_CURRENT_FILE', payload: file.path });
-        
-        console.log('File opening completed successfully');
-        
-        // Show success message to user
-        console.log(`✅ File ${file.name} opened successfully in editor`);
-        
-      } catch (error) {
-        console.error('Unexpected error reading file:', error);
-        alert(`Unexpected error reading file ${file.name}: ${error}`);
-        
-        // Fallback to mock content
-        const mockFile = {
-          id: file.path,
-          name: file.name,
-          path: file.path,
-          content: `// Error loading ${file.name}\n// ${error}`,
-          language: getLanguageFromExtension(file.name),
-          modified: false,
-          lastModified: new Date()
-        };
-        
-        console.log('Using fallback content for:', file.name);
-        dispatch({ type: 'ADD_OPEN_FILE', payload: mockFile });
-        dispatch({ type: 'SET_CURRENT_FILE', payload: file.path });
-      }
+    } catch (error) {
+      console.error('Error loading directory:', error);
+    } finally {
+      setLoading(false);
     }
-    console.log('=== End File Click Debug ===');
   };
 
-  const getLanguageFromExtension = (fileName: string) => {
+  const updateNodeChildren = (nodes: FileNode[], nodeId: string, children: FileNode[]): FileNode[] => {
+    return nodes.map(node => {
+      if (node.id === nodeId) {
+        return { ...node, children, expanded: true };
+      }
+      if (node.children) {
+        return { ...node, children: updateNodeChildren(node.children, nodeId, children) };
+      }
+      return node;
+    });
+  };
+
+  const toggleNodeExpansion = async (node: FileNode) => {
+    if (!node.isDirectory) return;
+
+    if (node.expanded) {
+      // Collapse
+      setFileTree(prev => updateNodeExpansion(prev, node.id, false));
+    } else {
+      // Expand and load children if not loaded
+      if (!node.children || node.children.length === 0) {
+        await loadDirectory(node.path, node);
+      } else {
+        setFileTree(prev => updateNodeExpansion(prev, node.id, true));
+      }
+    }
+  };
+
+  const updateNodeExpansion = (nodes: FileNode[], nodeId: string, expanded: boolean): FileNode[] => {
+    return nodes.map(node => {
+      if (node.id === nodeId) {
+        return { ...node, expanded };
+      }
+      if (node.children) {
+        return { ...node, children: updateNodeExpansion(node.children, nodeId, expanded) };
+      }
+      return node;
+    });
+  };
+
+  const handleFileClick = async (node: FileNode) => {
+    if (node.isDirectory) {
+      await toggleNodeExpansion(node);
+      return;
+    }
+
+    // Select the file
+    setSelectedFile(node.id);
+
+    // Check if file is already open
+    const existingFile = state.project.openFiles.find(f => f.path === node.path);
+    if (existingFile) {
+      // File is already open, just switch to it
+      dispatch({ type: 'SET_CURRENT_FILE', payload: existingFile.id });
+      return;
+    }
+
+    // Load file content from disk
+    try {
+      console.log('Loading file from disk:', node.path);
+      const result = await ipcService.readFile(node.path);
+      
+      if (result.success && result.content !== undefined) {
+        console.log('File loaded successfully:', node.name, 'Content length:', result.content.length);
+        
+        // Create file object with loaded content
+        const fileObj = {
+          id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: node.name,
+          path: node.path,
+          content: result.content,
+          language: getLanguageFromExtension(node.name),
+          lastModified: new Date(),
+          modified: false
+        };
+
+        // Add to open files
+        dispatch({ type: 'ADD_OPEN_FILE', payload: fileObj });
+        
+        // Set as current file
+        dispatch({ type: 'SET_CURRENT_FILE', payload: fileObj.id });
+        
+        console.log('File opened successfully:', fileObj.name, 'ID:', fileObj.id);
+      } else {
+        console.error('Failed to read file:', result.error);
+        alert(`Failed to open file: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error opening file:', error);
+      alert(`Error opening file: ${error}`);
+    }
+  };
+
+  const getLanguageFromExtension = (fileName: string): string => {
     const extension = fileName.split('.').pop()?.toLowerCase();
     const languageMap: { [key: string]: string } = {
-      'tsx': 'typescript',
-      'ts': 'typescript',
-      'jsx': 'javascript',
       'js': 'javascript',
+      'jsx': 'javascript',
+      'ts': 'typescript',
+      'tsx': 'typescript',
       'html': 'html',
       'css': 'css',
+      'scss': 'scss',
+      'sass': 'sass',
       'json': 'json',
       'md': 'markdown',
-      'py': 'python'
+      'py': 'python',
+      'java': 'java',
+      'cpp': 'cpp',
+      'c': 'c',
+      'php': 'php',
+      'rb': 'ruby',
+      'go': 'go',
+      'rs': 'rust',
+      'xml': 'xml',
+      'yaml': 'yaml',
+      'yml': 'yaml',
+      'toml': 'toml',
+      'ini': 'ini',
+      'sh': 'shell',
+      'bash': 'shell',
+      'zsh': 'shell',
+      'fish': 'shell',
+      'ps1': 'powershell',
+      'sql': 'sql',
+      'dockerfile': 'dockerfile'
     };
     return languageMap[extension || ''] || 'plaintext';
   };
 
-  const renderFileTree = (nodes: FileNode[], level = 0) => {
-    return nodes.map(node => {
-      const isExpanded = expandedDirs.has(node.path);
-      const showChildren = node.isDirectory && isExpanded && node.children;
-      
-      return (
-        <div key={node.path}>
-          <FileItem
-            $level={level}
-            $isDirectory={node.isDirectory}
-            $selected={selectedFile === node.path}
-            onClick={() => handleFileClick(node)}
-          >
-            <FileIcon>{getFileIcon(node.name, node.isDirectory)}</FileIcon>
-            <FileName>{node.name}</FileName>
-          </FileItem>
-          
-          {showChildren && renderFileTree(node.children!, level + 1)}
-        </div>
-      );
-    });
+  const getFileIcon = (node: FileNode): string => {
+    if (node.isDirectory) {
+      return node.expanded ? '📂' : '📁';
+    }
+    
+    const extension = node.name.split('.').pop()?.toLowerCase();
+    const iconMap: { [key: string]: string } = {
+      'js': '🟨',
+      'jsx': '🔷',
+      'ts': '🔵',
+      'tsx': '🔷',
+      'html': '🟧',
+      'css': '🟦',
+      'scss': '🟪',
+      'sass': '🟪',
+      'json': '🟫',
+      'md': '📝',
+      'py': '🐍',
+      'java': '☕',
+      'cpp': '⚙️',
+      'c': '⚙️',
+      'php': '🐘',
+      'rb': '💎',
+      'go': '🐹',
+      'rs': '🦀',
+      'xml': '📄',
+      'yaml': '📄',
+      'yml': '📄',
+      'toml': '📄',
+      'ini': '📄',
+      'sh': '🐚',
+      'bash': '🐚',
+      'zsh': '🐚',
+      'fish': '🐚',
+      'ps1': '💙',
+      'sql': '🗃️',
+      'dockerfile': '🐳',
+      'gitignore': '🚫',
+      'env': '🔐',
+      'lock': '🔒',
+      'log': '📋',
+      'txt': '📄',
+      'pdf': '📕',
+      'png': '🖼️',
+      'jpg': '🖼️',
+      'jpeg': '🖼️',
+      'gif': '🖼️',
+      'svg': '🎨',
+      'ico': '🎨',
+      'mp4': '🎬',
+      'mp3': '🎵',
+      'wav': '🎵',
+      'zip': '📦',
+      'tar': '📦',
+      'gz': '📦'
+    };
+    return iconMap[extension || ''] || '📄';
+  };
+
+  const renderFileNode = (node: FileNode, level: number = 0): React.ReactNode => {
+    return (
+      <React.Fragment key={node.id}>
+        <FileItem
+          $level={level}
+          $isDirectory={node.isDirectory}
+          $isSelected={selectedFile === node.id}
+          onClick={() => handleFileClick(node)}
+        >
+          {node.isDirectory && (
+            <ExpandIcon $expanded={node.expanded || false}>
+              ▶
+            </ExpandIcon>
+          )}
+          <FileIcon>{getFileIcon(node)}</FileIcon>
+          <FileName>{node.name}</FileName>
+        </FileItem>
+        {node.isDirectory && node.expanded && node.children && (
+          <>
+            {node.children.map(child => renderFileNode(child, level + 1))}
+          </>
+        )}
+      </React.Fragment>
+    );
   };
 
   const handleNewFile = async () => {
+    const fileName = prompt('Enter file name:');
+    if (!fileName) return;
+
     try {
-      console.log('handleNewFile called');
+      const filePath = `/home/ubuntu/Nebulus/${fileName}`;
+      const result = await ipcService.writeFile(filePath, '');
       
-      // Check if electronAPI exists
-      if (!window.electronAPI) {
-        console.error('Electron API not available');
-        alert('Electron API not available');
-        return;
-      }
-      
-      // Use Electron's save dialog to get custom filename
-      const saveResult = await window.electronAPI.invoke('dialog:saveFile', 'untitled.js');
-      console.log('Save dialog result:', saveResult);
-      
-      if (saveResult.canceled || !saveResult.filePath) {
-        console.log('File creation canceled by user');
-        return;
-      }
-      
-      const filePath = saveResult.filePath;
-      const fileName = filePath.split('/').pop() || 'untitled.js';
-      console.log('Creating file:', fileName, 'at path:', filePath);
-      
-      // Create content based on file extension
-      const extension = fileName.split('.').pop()?.toLowerCase() || '';
-      let defaultContent = '';
-      
-      switch (extension) {
-        case 'js':
-          defaultContent = `// ${fileName}\n// Created: ${new Date().toISOString()}\n\nconsole.log("Hello from ${fileName}");`;
-          break;
-        case 'ts':
-          defaultContent = `// ${fileName}\n// Created: ${new Date().toISOString()}\n\nconst message: string = "Hello from ${fileName}";\nconsole.log(message);`;
-          break;
-        case 'html':
-          defaultContent = `<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>${fileName.replace('.html', '')}</title>\n</head>\n<body>\n    <h1>Hello from ${fileName}</h1>\n</body>\n</html>`;
-          break;
-        case 'css':
-          defaultContent = `/* ${fileName} */\n/* Created: ${new Date().toISOString()} */\n\nbody {\n    font-family: Arial, sans-serif;\n    margin: 0;\n    padding: 20px;\n}`;
-          break;
-        case 'py':
-          defaultContent = `# ${fileName}\n# Created: ${new Date().toISOString()}\n\ndef main():\n    print("Hello from ${fileName}")\n\nif __name__ == "__main__":\n    main()`;
-          break;
-        case 'md':
-          defaultContent = `# ${fileName.replace('.md', '')}\n\nCreated: ${new Date().toISOString()}\n\nYour content here...`;
-          break;
-        default:
-          defaultContent = `// ${fileName}\n// Created: ${new Date().toISOString()}\n\n// Your code here...`;
-      }
-      
-      const result = await window.electronAPI.invoke('file:write', filePath, defaultContent);
-      console.log('Write result:', result);
-      
-      if (result && result.success) {
-        console.log('File created successfully');
-        alert('File "' + fileName + '" created successfully!');
-        
-        // Add the new file to the editor
-        const newFile = {
-          id: filePath,
-          name: fileName,
-          path: filePath,
-          content: defaultContent,
-          language: getLanguageFromExtension(fileName),
-          modified: false,
-          lastModified: new Date()
-        };
-        
-        dispatch({ type: 'ADD_OPEN_FILE', payload: newFile });
-        dispatch({ type: 'SET_CURRENT_FILE', payload: filePath });
-        
-        // Refresh file tree to show new file
-        handleRefresh();
+      if (result.success) {
+        // Reload the directory to show the new file
+        await loadDirectory('/home/ubuntu/Nebulus');
       } else {
-        console.error('File creation failed:', result ? result.error : 'Unknown error');
-        alert('Failed to create file: ' + (result ? result.error : 'Unknown error'));
+        alert(`Failed to create file: ${result.error}`);
       }
     } catch (error) {
-      console.error('Error in handleNewFile:', error);
-      alert('Error creating file: ' + String(error));
+      alert(`Error creating file: ${error}`);
     }
   };
 
   const handleNewFolder = async () => {
+    const folderName = prompt('Enter folder name:');
+    if (!folderName) return;
+
     try {
-      console.log('handleNewFolder called');
+      // Create folder using mkdir command
+      const result = await ipcService.executeCommand(`mkdir -p "${folderName}"`, '/home/ubuntu/Nebulus');
       
-      if (!window.electronAPI) {
-        console.error('Electron API not available');
-        alert('Electron API not available');
-        return;
-      }
-      
-      // Use a simple prompt alternative - this is a workaround for now
-      const folderName = window.prompt('Enter folder name:', 'new-folder');
-      if (!folderName || folderName.trim() === '') {
-        console.log('Folder creation canceled by user');
-        return;
-      }
-      
-      const sanitizedFolderName = folderName.trim().replace(/[<>:"/\\|?*]/g, '-');
-      console.log('Creating folder:', sanitizedFolderName);
-      
-      // Use mkdir command
-      const result = await window.electronAPI.invoke('terminal:execute', 'mkdir "' + sanitizedFolderName + '"', './');
-      console.log('Folder creation result:', result);
-      
-      if (result && result.success) {
-        console.log('Folder created successfully');
-        alert('Folder "' + folderName + '" created successfully!');
-        
-        // Refresh file tree to show new folder
-        handleRefresh();
+      if (result.success) {
+        // Reload the directory to show the new folder
+        await loadDirectory('/home/ubuntu/Nebulus');
       } else {
-        console.error('Folder creation failed:', result ? result.stderr : 'Unknown error');
-        alert('Failed to create folder: ' + (result ? result.stderr || 'Unknown error' : 'Unknown error'));
+        alert(`Failed to create folder: ${result.stderr || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Error in handleNewFolder:', error);
-      alert('Error creating folder: ' + String(error));
+      alert(`Error creating folder: ${error}`);
     }
   };
 
-  const handleRefresh = async () => {
-    try {
-      console.log('Refresh clicked - reloading files');
-      setIsLoading(true);
-      const result = await ipcService.readDirectory(currentWorkspace.path);
-      if (result.success && result.files) {
-        // Filter out irrelevant directories
-        const filteredFiles = result.files.filter(file => 
-          !['node_modules', '.git', 'dist', '.DS_Store', '.env'].includes(file.name) &&
-          !file.name.startsWith('.')
-        );
-
-        const fileNodes: FileNode[] = filteredFiles.map(file => ({
-          name: file.name,
-          path: file.path,
-          isDirectory: file.isDirectory,
-          children: file.isDirectory ? [] : undefined
-        }));
-
-        setFileTree(fileNodes);
-        console.log('File tree refreshed, found', fileNodes.length, 'items');
-      }
-    } catch (error) {
-      console.error('Error refreshing file tree:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleOpenFolder = async () => {
-    try {
-      console.log('handleOpenFolder called');
-      
-      if (!window.electronAPI) {
-        console.error('Electron API not available');
-        alert('Electron API not available');
-        return;
-      }
-      
-      const result = await window.electronAPI.invoke('dialog:openDirectory');
-      console.log('Open directory result:', result);
-      
-      if (result && !result.canceled && result.filePaths && result.filePaths.length > 0) {
-        const folderPath = result.filePaths[0];
-        const folderName = folderPath.split('/').pop() || 'Unknown Project';
-        
-        const newWorkspace = {
-          name: folderName,
-          path: folderPath
-        };
-
-        // Update current workspace
-        setCurrentWorkspace(newWorkspace);
-
-        // Add to recent projects (avoid duplicates)
-        setRecentProjects(prev => {
-          const filtered = prev.filter(p => p.path !== folderPath);
-          return [newWorkspace, ...filtered].slice(0, 10); // Keep only 10 recent projects
-        });
-
-        // Clear current open files when switching workspace
-        dispatch({ type: 'CLEAR_OPEN_FILES' });
-        
-        console.log('Switched to workspace:', newWorkspace);
-        alert(`Opened project: ${folderName}`);
-      } else {
-        console.log('Dialog was canceled');
-      }
-    } catch (error) {
-      console.error('Error opening folder:', error);
-      alert('Error opening folder: ' + String(error));
-    }
-  };
-
-  const handleSwitchProject = (project: {name: string, path: string}) => {
-    setCurrentWorkspace(project);
-    dispatch({ type: 'CLEAR_OPEN_FILES' });
-    
-    // Move to front of recent projects
-    setRecentProjects(prev => {
-      const filtered = prev.filter(p => p.path !== project.path);
-      return [project, ...filtered];
-    });
-  };
-
-  const handleCloseFolder = () => {
-    setCurrentWorkspace({
-      name: 'No Folder Open',
-      path: ''
-    });
-    setFileTree([]);
-    dispatch({ type: 'CLEAR_OPEN_FILES' });
+  const handleRefresh = () => {
+    loadDirectory('/home/ubuntu/Nebulus');
   };
 
   return (
     <ExplorerContainer>
-      <WorkspaceHeader>
-        <WorkspaceTitle>Explorer</WorkspaceTitle>
-        <ProjectName onClick={handleOpenFolder}>
-          <span>{currentWorkspace.name}</span>
-          <ProjectActions>
-            {recentProjects.length > 0 && (
-              <ActionButton 
-                title="Recent Projects" 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // Show recent projects dropdown (for now just show alert)
-                  const projectList = recentProjects.map(p => p.name).join('\n');
-                  alert('Recent Projects:\n' + projectList);
-                }}
-              >
-                📋
-              </ActionButton>
-            )}
-            <ActionButton title="Open Folder" onClick={handleOpenFolder}>
-              📂
-            </ActionButton>
-            {currentWorkspace.path && (
-              <ActionButton title="Close Folder" onClick={handleCloseFolder}>
-                ✕
-              </ActionButton>
-            )}
-          </ProjectActions>
-        </ProjectName>
-      </WorkspaceHeader>
-      <ToolbarContainer>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          <ToolbarButton onClick={() => {
-            console.log('New File button clicked!');
-            alert('New File button was clicked!');
-            handleNewFile();
-          }} title="New File">
+      <ExplorerHeader>
+        Explorer
+        <ExplorerActions>
+          <ActionButton onClick={handleNewFile} title="New File">
             📄
-          </ToolbarButton>
-          <ToolbarButton onClick={() => {
-            console.log('New Folder button clicked!');
-            alert('New Folder button was clicked!');
-            handleNewFolder();
-          }} title="New Folder">
+          </ActionButton>
+          <ActionButton onClick={handleNewFolder} title="New Folder">
             📁
-          </ToolbarButton>
-          <ToolbarButton onClick={() => {
-            console.log('Refresh button clicked!');
-            alert('Refresh button was clicked!');
-            handleRefresh();
-          }} title="Refresh">
-            ↻
-          </ToolbarButton>
-        </div>
-        <ToolbarButton onClick={() => {
-          console.log('Open Folder button clicked!');
-          alert('Open Folder button was clicked!');
-          handleOpenFolder();
-        }} title="Open Folder">
-          📂
-        </ToolbarButton>
-      </ToolbarContainer>
+          </ActionButton>
+          <ActionButton onClick={handleRefresh} title="Refresh">
+            🔄
+          </ActionButton>
+        </ExplorerActions>
+      </ExplorerHeader>
       
       <FileTree>
-        {isLoading ? (
+        {loading ? (
           <EmptyState>
-            <div>Loading project files...</div>
+            <div>⏳</div>
+            <div>Loading files...</div>
           </EmptyState>
         ) : fileTree.length === 0 ? (
           <EmptyState>
+            <div>📁</div>
             <div>No files found</div>
-            <div style={{ marginTop: '8px', fontSize: '12px' }}>
-              Click the refresh button to reload files
-            </div>
+            <div style={{ fontSize: '12px' }}>Create a new file to get started</div>
           </EmptyState>
         ) : (
-          renderFileTree(fileTree)
+          fileTree.map(node => renderFileNode(node))
         )}
       </FileTree>
     </ExplorerContainer>
@@ -635,3 +463,4 @@ const FileExplorer: React.FC = () => {
 };
 
 export default FileExplorer;
+

@@ -1,0 +1,417 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import styled from 'styled-components';
+import { Terminal as XTerm } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import '@xterm/xterm/css/xterm.css';
+import { useAppState } from '../../hooks/useAppState';
+
+const TerminalContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: ${props => props.theme.colors.terminal.background};
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+`;
+
+const TerminalHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: ${props => props.theme.spacing.sm};
+  background-color: ${props => props.theme.colors.surface};
+  border-bottom: 1px solid ${props => props.theme.colors.border};
+  font-size: ${props => props.theme.fontSizes.small};
+`;
+
+const TerminalTitle = styled.div`
+  color: ${props => props.theme.colors.text};
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: ${props => props.theme.spacing.xs};
+`;
+
+const StatusIndicator = styled.div<{ $connected: boolean }>`
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: ${props => props.$connected ? '#00ff00' : '#ff0000'};
+`;
+
+const TerminalActions = styled.div`
+  display: flex;
+  gap: ${props => props.theme.spacing.xs};
+`;
+
+const TerminalButton = styled.button`
+  padding: ${props => props.theme.spacing.xs} ${props => props.theme.spacing.sm};
+  background-color: ${props => props.theme.colors.background};
+  border: 1px solid ${props => props.theme.colors.border};
+  border-radius: ${props => props.theme.borderRadius.small};
+  color: ${props => props.theme.colors.text};
+  font-size: ${props => props.theme.fontSizes.small};
+  cursor: pointer;
+  
+  &:hover {
+    background-color: ${props => props.theme.colors.surfaceHover};
+    border-color: ${props => props.theme.colors.borderHover};
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const TerminalWrapper = styled.div`
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  
+  .xterm {
+    height: 100% !important;
+    width: 100% !important;
+  }
+  
+  .xterm-viewport {
+    background-color: transparent !important;
+  }
+  
+  .xterm-screen {
+    background-color: transparent !important;
+  }
+`;
+
+const ConnectionStatus = styled.div<{ $visible: boolean }>`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: ${props => props.theme.colors.surface};
+  border: 1px solid ${props => props.theme.colors.border};
+  border-radius: ${props => props.theme.borderRadius.medium};
+  padding: ${props => props.theme.spacing.md};
+  color: ${props => props.theme.colors.text};
+  font-size: ${props => props.theme.fontSizes.small};
+  display: ${props => props.$visible ? 'flex' : 'none'};
+  flex-direction: column;
+  align-items: center;
+  gap: ${props => props.theme.spacing.sm};
+  z-index: 10;
+`;
+
+interface TerminalImprovedProps {
+  sessionId?: string;
+  initialCwd?: string;
+}
+
+const TerminalImproved: React.FC<TerminalImprovedProps> = ({ 
+  sessionId = 'main-terminal',
+  initialCwd = '/home/ubuntu/Nebulus'
+}) => {
+  const { state, dispatch } = useAppState();
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const xtermRef = useRef<XTerm | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [currentCwd, setCurrentCwd] = useState(initialCwd);
+
+  // Initialize XTerm
+  useEffect(() => {
+    if (!terminalRef.current) return;
+
+    // Create XTerm instance
+    const xterm = new XTerm({
+      theme: {
+        background: '#0D1117',
+        foreground: '#F0F6FC',
+        cursor: '#58A6FF',
+        cursorAccent: '#0D1117',
+        selection: '#58A6FF40',
+        black: '#0D1117',
+        red: '#FF7B72',
+        green: '#7CE38B',
+        yellow: '#FFA657',
+        blue: '#79C0FF',
+        magenta: '#D2A8FF',
+        cyan: '#A5F3FC',
+        white: '#F0F6FC',
+        brightBlack: '#6E7681',
+        brightRed: '#FF7B72',
+        brightGreen: '#7CE38B',
+        brightYellow: '#FFA657',
+        brightBlue: '#79C0FF',
+        brightMagenta: '#D2A8FF',
+        brightCyan: '#A5F3FC',
+        brightWhite: '#F0F6FC'
+      },
+      fontFamily: 'Monaco, Menlo, "Ubuntu Mono", Consolas, "source-code-pro", monospace',
+      fontSize: 14,
+      lineHeight: 1.2,
+      cursorBlink: true,
+      cursorStyle: 'block',
+      scrollback: 1000,
+      tabStopWidth: 4,
+      allowTransparency: true
+    });
+
+    // Create addons
+    const fitAddon = new FitAddon();
+    const webLinksAddon = new WebLinksAddon();
+
+    // Load addons
+    xterm.loadAddon(fitAddon);
+    xterm.loadAddon(webLinksAddon);
+
+    // Open terminal
+    xterm.open(terminalRef.current);
+    
+    // Store references
+    xtermRef.current = xterm;
+    fitAddonRef.current = fitAddon;
+
+    // Fit terminal to container
+    setTimeout(() => {
+      fitAddon.fit();
+    }, 100);
+
+    // Handle terminal input
+    xterm.onData((data) => {
+      if (isConnected && window.electronAPI) {
+        window.electronAPI.invoke('terminal-write', sessionId, data);
+      }
+    });
+
+    // Handle terminal resize
+    xterm.onResize(({ cols, rows }) => {
+      if (isConnected && window.electronAPI) {
+        window.electronAPI.invoke('terminal-resize', sessionId, cols, rows);
+      }
+    });
+
+    // Cleanup on unmount
+    return () => {
+      if (xtermRef.current) {
+        xtermRef.current.dispose();
+        xtermRef.current = null;
+      }
+    };
+  }, []);
+
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      if (fitAddonRef.current) {
+        setTimeout(() => {
+          fitAddonRef.current?.fit();
+        }, 100);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Connect to terminal session
+  const connectToTerminal = useCallback(async () => {
+    if (!window.electronAPI || isConnecting) return;
+
+    setIsConnecting(true);
+    
+    try {
+      // Create terminal session
+      const result = await window.electronAPI.invoke('terminal-create', sessionId, currentCwd);
+      
+      if (result.success) {
+        setIsConnected(true);
+        setCurrentCwd(result.cwd);
+        
+        // Clear terminal and show welcome message
+        if (xtermRef.current) {
+          xtermRef.current.clear();
+          xtermRef.current.writeln('\x1b[32m✅ Connected to GalactusIDE Terminal\x1b[0m');
+          xtermRef.current.writeln(`\x1b[36mWorking directory: ${result.cwd}\x1b[0m`);
+          xtermRef.current.writeln('');
+        }
+        
+        console.log('Terminal connected successfully:', sessionId);
+      } else {
+        console.error('Failed to create terminal session:', result.error);
+        if (xtermRef.current) {
+          xtermRef.current.writeln(`\x1b[31m❌ Failed to connect: ${result.error}\x1b[0m`);
+        }
+      }
+    } catch (error) {
+      console.error('Error connecting to terminal:', error);
+      if (xtermRef.current) {
+        xtermRef.current.writeln(`\x1b[31m❌ Connection error: ${error}\x1b[0m`);
+      }
+    } finally {
+      setIsConnecting(false);
+    }
+  }, [sessionId, currentCwd, isConnecting]);
+
+  // Disconnect from terminal
+  const disconnectFromTerminal = useCallback(async () => {
+    if (!window.electronAPI || !isConnected) return;
+
+    try {
+      await window.electronAPI.invoke('terminal-kill', sessionId);
+      setIsConnected(false);
+      
+      if (xtermRef.current) {
+        xtermRef.current.writeln('\x1b[33m⚠️ Terminal disconnected\x1b[0m');
+      }
+      
+      console.log('Terminal disconnected:', sessionId);
+    } catch (error) {
+      console.error('Error disconnecting terminal:', error);
+    }
+  }, [sessionId, isConnected]);
+
+  // Listen for terminal data
+  useEffect(() => {
+    if (!window.electronAPI) return;
+
+    const handleTerminalData = (receivedSessionId: string, data: string) => {
+      if (receivedSessionId === sessionId && xtermRef.current) {
+        xtermRef.current.write(data);
+        
+        // Expose terminal content globally for AI context
+        (window as any).__galactusTerminalContent = (window as any).__galactusTerminalContent || '';
+        (window as any).__galactusTerminalContent += data;
+        
+        // Keep only last 10000 characters to prevent memory issues
+        if ((window as any).__galactusTerminalContent.length > 10000) {
+          (window as any).__galactusTerminalContent = (window as any).__galactusTerminalContent.slice(-10000);
+        }
+      }
+    };
+
+    const handleTerminalExit = (receivedSessionId: string, exitCode: number) => {
+      if (receivedSessionId === sessionId) {
+        setIsConnected(false);
+        if (xtermRef.current) {
+          xtermRef.current.writeln(`\x1b[33m⚠️ Terminal session ended (exit code: ${exitCode})\x1b[0m`);
+        }
+        console.log('Terminal session ended:', sessionId, 'Exit code:', exitCode);
+      }
+    };
+
+    window.electronAPI.on('terminal-data', handleTerminalData);
+    window.electronAPI.on('terminal-exit', handleTerminalExit);
+
+    return () => {
+      if (window.electronAPI) {
+        window.electronAPI.removeAllListeners('terminal-data');
+        window.electronAPI.removeAllListeners('terminal-exit');
+      }
+    };
+  }, [sessionId]);
+
+  // Auto-connect on mount
+  useEffect(() => {
+    if (!isConnected && !isConnecting) {
+      connectToTerminal();
+    }
+  }, [connectToTerminal, isConnected, isConnecting]);
+
+  const handleClear = () => {
+    if (xtermRef.current) {
+      xtermRef.current.clear();
+    }
+  };
+
+  const handleReconnect = () => {
+    if (isConnected) {
+      disconnectFromTerminal().then(() => {
+        setTimeout(connectToTerminal, 1000);
+      });
+    } else {
+      connectToTerminal();
+    }
+  };
+
+  const handleNewTerminal = () => {
+    // Create a new terminal with a unique session ID
+    const newSessionId = `terminal-${Date.now()}`;
+    // In a real implementation, this would create a new terminal tab
+    console.log('Would create new terminal with ID:', newSessionId);
+  };
+
+  const sendCommand = (command: string) => {
+    if (isConnected && window.electronAPI) {
+      window.electronAPI.invoke('terminal-write', sessionId, command + '\r');
+    }
+  };
+
+  // Quick command buttons
+  const quickCommands = [
+    { label: 'npm install', command: 'npm install' },
+    { label: 'npm run dev', command: 'npm run dev' },
+    { label: 'npm test', command: 'npm test' },
+    { label: 'git status', command: 'git status' },
+    { label: 'ls -la', command: 'ls -la' },
+    { label: 'pwd', command: 'pwd' }
+  ];
+
+  return (
+    <TerminalContainer>
+      <TerminalHeader>
+        <TerminalTitle>
+          <StatusIndicator $connected={isConnected} />
+          Terminal {isConnected ? '(Connected)' : '(Disconnected)'}
+        </TerminalTitle>
+        <TerminalActions>
+          {quickCommands.map((cmd, index) => (
+            <TerminalButton
+              key={index}
+              onClick={() => sendCommand(cmd.command)}
+              disabled={!isConnected}
+              title={`Run: ${cmd.command}`}
+            >
+              {cmd.label}
+            </TerminalButton>
+          ))}
+          <TerminalButton onClick={handleClear} disabled={!isConnected}>
+            Clear
+          </TerminalButton>
+          <TerminalButton onClick={handleReconnect} disabled={isConnecting}>
+            {isConnecting ? 'Connecting...' : isConnected ? 'Reconnect' : 'Connect'}
+          </TerminalButton>
+          <TerminalButton onClick={handleNewTerminal}>
+            New
+          </TerminalButton>
+        </TerminalActions>
+      </TerminalHeader>
+      
+      <TerminalWrapper>
+        <div ref={terminalRef} style={{ height: '100%', width: '100%' }} />
+        
+        <ConnectionStatus $visible={!isConnected && !isConnecting}>
+          <div>🔌</div>
+          <div>Terminal Disconnected</div>
+          <div style={{ fontSize: '12px', textAlign: 'center' }}>
+            Click "Connect" to start a new terminal session
+          </div>
+          <TerminalButton onClick={connectToTerminal}>
+            Connect
+          </TerminalButton>
+        </ConnectionStatus>
+        
+        <ConnectionStatus $visible={isConnecting}>
+          <div>⏳</div>
+          <div>Connecting to Terminal...</div>
+          <div style={{ fontSize: '12px' }}>
+            Please wait while we establish the connection
+          </div>
+        </ConnectionStatus>
+      </TerminalWrapper>
+    </TerminalContainer>
+  );
+};
+
+export default TerminalImproved;
+

@@ -310,89 +310,8 @@ const Terminal: React.FC<TerminalProps> = ({ className = '' }) => {
         }}
       />
       
-      <style jsx>{`
-        .terminal-container {
-          height: 100%;
-          background: #1a1a1a;
-          border-radius: 8px;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-        }
-        
-        .terminal-header {
-          background: #2d2d2d;
-          padding: 8px 12px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-bottom: 1px solid #404040;
-        }
-        
-        .terminal-status {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-        
-        .status-indicator {
-          font-size: 12px;
-          font-weight: 500;
-        }
-        
-        .status-indicator.connected {
-          color: #51cf66;
-        }
-        
-        .status-indicator.disconnected {
-          color: #ff6b6b;
-        }
-        
-        .executing-indicator {
-          color: #ffd43b;
-          font-size: 12px;
-          animation: pulse 1s infinite;
-        }
-        
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-        
-        .quick-commands {
-          display: flex;
-          gap: 6px;
-        }
-        
-        .quick-cmd-btn {
-          background: #404040;
-          border: 1px solid #555;
-          color: #fff;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 11px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        
-        .quick-cmd-btn:hover:not(:disabled) {
-          background: #505050;
-          border-color: #666;
-        }
-        
-        .quick-cmd-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-        
-        .terminal-content {
-          flex: 1;
-          padding: 8px;
-        }
-      `}</style>
     </div>
   );
 };
 
 export default Terminal;
-

@@ -519,7 +519,7 @@ What specific task would you like help with?`;
       return userInput; // Return original message if not contextual and no editor content
     }
 
-    let contextInfo = [];
+    const contextInfo = [];
     
     // Add editor context if relevant - be more inclusive
     if (editor.fileName || editor.content || editor.selectedText || editor.errors?.length > 0) {

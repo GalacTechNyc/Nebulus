@@ -83,6 +83,36 @@ class ErrorLogger {
     }
   }
 
+  info(message: string, category?: string, context?: any): void {
+    const error = createEnhancedError(message, ErrorType.UNKNOWN, ErrorSeverity.LOW, { category, ...context });
+    this.log(error);
+    if (process.env.NODE_ENV === 'development') {
+      console.info(`[${category || 'INFO'}]`, message, context);
+    }
+  }
+
+  warn(message: string, category?: string, context?: any): void {
+    const error = createEnhancedError(message, ErrorType.UNKNOWN, ErrorSeverity.MEDIUM, { category, ...context });
+    this.log(error);
+    if (process.env.NODE_ENV === 'development') {
+      console.warn(`[${category || 'WARN'}]`, message, context);
+    }
+  }
+
+  debug(message: string, category?: string, context?: any): void {
+    if (process.env.NODE_ENV === 'development') {
+      console.debug(`[${category || 'DEBUG'}]`, message, context);
+    }
+  }
+
+  error(message: string, category?: string, context?: any): void {
+    const error = createEnhancedError(message, ErrorType.RUNTIME, ErrorSeverity.HIGH, { category, ...context });
+    this.log(error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`[${category || 'ERROR'}]`, message, context);
+    }
+  }
+
   getLogs(filter?: { type?: ErrorType; severity?: ErrorSeverity }): EnhancedError[] {
     if (!filter) return [...this.logs];
     
@@ -273,6 +303,8 @@ export function withErrorBoundary<P extends object>(
       return <Component {...this.props} />;
     }
   };
+
+  return ErrorBoundaryComponent;
 }
 
 // Async error wrapper for better error handling

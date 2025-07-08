@@ -135,6 +135,9 @@ export enum IpcChannels {
   CREATE_FILE = 'create-file',
   DELETE_FILE = 'delete-file',
   LIST_DIRECTORY = 'list-directory',
+  FILE_READ = 'file-read',
+  FILE_WRITE = 'file-write',
+  FILE_DELETE = 'file-delete',
   
   // Terminal operations
   TERMINAL_CREATE = 'terminal-create',

@@ -119,7 +119,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
         project: { ...state.project, currentFile: action.payload }
       };
       
-    case 'ADD_OPEN_FILE':
+    case 'ADD_OPEN_FILE': {
       // Check if file is already open
       const existingFileIndex = state.project.openFiles.findIndex(f => f.id === action.payload.id);
       if (existingFileIndex >= 0) {
@@ -143,6 +143,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
           }
         };
       }
+    }
       
     case 'REMOVE_OPEN_FILE':
       return {
@@ -227,7 +228,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
         }
       };
       
-    case 'ADD_TERMINAL':
+    case 'ADD_TERMINAL': {
       // Set all terminals as inactive, then add new active terminal
       const updatedTerminals = state.terminal.terminals.map(t => ({ ...t, isActive: false }));
       const splitGroup = action.payload.splitGroup || 1;
@@ -239,8 +240,9 @@ function appReducer(state: AppState, action: AppAction): AppState {
           activeTerminal: action.payload.id
         }
       };
+    }
       
-    case 'REMOVE_TERMINAL':
+    case 'REMOVE_TERMINAL': {
       const filteredTerminals = state.terminal.terminals.filter(t => t.id !== action.payload);
       const newActiveTerminal = filteredTerminals.length > 0 ? filteredTerminals[0].id : null;
       return {
@@ -254,6 +256,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
           activeTerminal: newActiveTerminal
         }
       };
+    }
       
     case 'SET_ACTIVE_TERMINAL':
       return {
@@ -268,7 +271,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
         }
       };
       
-    case 'SPLIT_TERMINAL':
+    case 'SPLIT_TERMINAL': {
       // Split the terminal with the given ID into a new group
       const terminalToSplit = state.terminal.terminals.find(t => t.id === action.payload);
       if (!terminalToSplit) return state;

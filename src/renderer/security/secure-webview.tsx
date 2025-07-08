@@ -284,97 +284,20 @@ export const SecureWebview: React.FC<SecureWebviewProps> = ({
         src={src}
         className="secure-webview"
         // Security settings
-        nodeintegration="false"
-        contextIsolation="true"
-        enableremotemodule="false"
-        sandbox="true"
-        webSecurity="true"
-        allowRunningInsecureContent="false"
-        experimentalFeatures="false"
+        data-nodeintegration="false"
+        data-contextIsolation="true"
+        data-enableremotemodule="false"
+        data-sandbox="true"
+        data-webSecurity="true"
+        data-allowRunningInsecureContent="false"
+        data-experimentalFeatures="false"
         // Development settings
-        devtools={enableDevTools}
+        data-devtools={enableDevTools}
         // CSP will be injected by the main process
       />
       
-      <style jsx>{`
-        .secure-webview-container {
-          display: flex;
-          flex-direction: column;
-          height: 100%;
-          border: 1px solid #ccc;
-        }
-        
-        .webview-toolbar {
-          display: flex;
-          align-items: center;
-          padding: 8px;
-          background: #f5f5f5;
-          border-bottom: 1px solid #ccc;
-        }
-        
-        .url-bar {
-          display: flex;
-          flex: 1;
-          margin-right: 16px;
-        }
-        
-        .url-bar input {
-          flex: 1;
-          padding: 4px 8px;
-          border: 1px solid #ccc;
-          border-radius: 4px 0 0 4px;
-        }
-        
-        .url-bar button {
-          padding: 4px 12px;
-          border: 1px solid #ccc;
-          border-left: none;
-          border-radius: 0 4px 4px 0;
-          background: white;
-          cursor: pointer;
-        }
-        
-        .security-status {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        
-        .security-indicator {
-          font-size: 12px;
-          padding: 2px 6px;
-          border-radius: 3px;
-        }
-        
-        .security-indicator.secure {
-          background: #d4edda;
-          color: #155724;
-        }
-        
-        .security-indicator.warning {
-          background: #fff3cd;
-          color: #856404;
-        }
-        
-        .security-indicator.blocked {
-          background: #f8d7da;
-          color: #721c24;
-        }
-        
-        .secure-webview {
-          flex: 1;
-          width: 100%;
-          border: none;
-        }
-        
-        .loading-indicator {
-          font-size: 12px;
-          color: #666;
-        }
-      `}</style>
     </div>
   );
 };
 
-export default SecureWebview;
-
+export default SecureWebView;

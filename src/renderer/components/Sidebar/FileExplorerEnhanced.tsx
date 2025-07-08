@@ -701,7 +701,7 @@ const FileExplorerEnhanced: React.FC = () => {
             <EmptyState>
               <div>No files found</div>
               <div style={{ marginTop: '8px', fontSize: '12px' }}>
-                Click "Open Folder" to load a project
+                Click &quot;Open Folder&quot; to load a project
               </div>
             </EmptyState>
           ) : (

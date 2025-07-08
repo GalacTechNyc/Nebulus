@@ -485,7 +485,7 @@ const Browser: React.FC = () => {
                 ref={webviewRef}
                 src={currentUrl}
                 style={{ width: '100%', height: '100%' }}
-                onLoad={() => console.log('Webview loaded:', currentUrl.substring(0, 50) + '...')}
+                data-onload={() => console.log('Webview loaded:', currentUrl.substring(0, 50) + '...')}
                 {...({
                   sandbox: "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads",
                   allowpopups: true,
